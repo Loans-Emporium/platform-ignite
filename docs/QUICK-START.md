@@ -9,7 +9,7 @@
    - `github-pat` secret (GitHub Personal Access Token)
    - `tailscale-auth-key` secret (Tailscale auth key)
    - `cloudflare-tunnel-token` secret (Cloudflare Tunnel token)
-3. **BWS_TOKEN** for your VPS (scoped to loans_platform project)
+3. **BWS_TOKEN** for your VPS (scoped to loans_emporium_platform project)
 4. **BWS Secrets** for localization (optional but recommended):
    - `vps-hostname`: Desired system hostname
    - `vps-timezone`: Desired system timezone (default: `Asia/Kolkata`)
@@ -128,3 +128,4 @@ bws secret list --access-token $BWS_TOKEN
 
 **Time to complete**: 5-10 minutes  
 **Expected outcome**: Production-ready VPS with zero open ports
+
