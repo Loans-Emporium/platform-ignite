@@ -54,8 +54,15 @@ hostnamectl set-hostname loans-platform-vps-1 || true
 echo "127.0.0.1 loans-platform-vps-1" >> /etc/hosts
 
 if [[ -z "${BWS_TOKEN:-}" ]]; then
-    log_error "BWS_TOKEN environment variable is required."
-    log_error "Usage: BWS_TOKEN=your-token bash bootstrap.sh"
+    log_warn "BWS_TOKEN environment variable not found."
+    echo -n -e "${YELLOW}[PROMPT]${NC} Please enter your Bitwarden Secrets Manager Access Token: "
+    read -s BWS_TOKEN
+    echo "" # Add newline after silent input
+    export BWS_TOKEN
+fi
+
+if [[ -z "$BWS_TOKEN" ]]; then
+    log_error "BWS_TOKEN is required to proceed. Bootstrap aborted."
     exit 1
 fi
 
