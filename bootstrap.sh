@@ -97,6 +97,14 @@ else
     log_info "Phase 3: Tailscale already installed."
 fi
 
+# Attempt auto-join if Auth Key is in Bitwarden
+TS_KEY=$(bws secret get "TAILSCALE_AUTH_KEY" --access-token "$BWS_TOKEN" -o json | jq -r '.value' 2>/dev/null || echo "")
+if [[ -n "$TS_KEY" && "$TS_KEY" != "null" ]]; then
+    log_info "Phase 3.1: Authenticating Tailscale mesh network..."
+    tailscale up --authkey="$TS_KEY" > /dev/null 2>&1 || log_warn "Tailscale auto-join failed. You may need to run it manually."
+    unset TS_KEY
+fi
+
 # ─────────────────────────────────────────────────────────────────
 # PHASE 4: Install Cloudflared
 # ─────────────────────────────────────────────────────────────────
