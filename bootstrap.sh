@@ -31,7 +31,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 echo ""
 echo "╔════════════════════════════════════════════════════════════╗"
-echo "║     Loans Emporium Platform - ignite Bootstrap V5.0        ║"
+echo "║     Loans Emporium Platform - ignite Bootstrap V8.1        ║"
 echo "╚════════════════════════════════════════════════════════════╝"
 echo ""
 
