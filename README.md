@@ -3,7 +3,7 @@
 
 **Version**: V8.2  
 **Target Architecture**: Internal PaaS (Platform-as-a-Service)  
-**Last Updated**: March 15, 2026
+**Last Updated**: March 16, 2026
 
 ---
 
@@ -19,9 +19,22 @@ bash <(curl -fsSL https://raw.githubusercontent.com/your-org/ignite/main/bootstr
 
 1. **Runtimes**: Installs Docker Engine, Git, and **`yq`** (official binary for manifest parsing).
 2. **Hardening**: Configures UFW (Zero Open Ports), Tailscale (WireGuard Mesh), and Timezone/Hostname.
-3. **Backup Engine**: Installs **`rclone`** for OneDrive/R2 synchronization.
+3. **Backup Engine**: Installs **`rclone`** for R2 synchronization.
 4. **Secret Management**: Installs Bitwarden Secrets Manager CLI (`bws`).
 5. **Kickstart**: Clones `platform-core` and hand-off to the internal bootstrap.
+
+## 🔐 Security Design
+
+This repository follows security-by-design principles:
+
+- **Zero Secrets in Code**: No secrets, tokens, or credentials reside in this repository. All secrets are fetched at runtime.
+- **Forced Token Prompt**: `bootstrap.sh` enforces a masked runtime prompt for `BWS_TOKEN`, preventing exposure in process lists or shell history.
+- **Zero Open Ports**: The VPS has no inbound ports open. All ingress is handled via Cloudflare Tunnel (outbound-only).
+- **SSH via Mesh**: SSH access is restricted to the Tailscale mesh network only.
+
+## 🛡️ Reporting a Vulnerability
+
+If you discover a security vulnerability, please do NOT open a public issue. Email security concerns to: **security@loansemporium.com**. We acknowledge reports within 48 hours.
 
 ## Prerequisites
 
