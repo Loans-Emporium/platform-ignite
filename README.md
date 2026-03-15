@@ -15,40 +15,64 @@
 bash <(curl -fsSL https://raw.githubusercontent.com/your-org/ignite/main/bootstrap.sh)
 ```
 
-## What This Does
+## 🛠️ What This Does
+
+The bootstrap script performs a 5-minute automated setup:
 
 1. **Runtimes**: Installs Docker Engine, Git, and **`yq`** (official binary for manifest parsing).
 2. **Hardening**: Configures UFW (Zero Open Ports), Tailscale (WireGuard Mesh), and Timezone/Hostname.
 3. **Backup Engine**: Installs **`rclone`** for R2 synchronization.
 4. **Secret Management**: Installs Bitwarden Secrets Manager CLI (`bws`).
-5. **Kickstart**: Clones `platform-core` and hand-off to the internal bootstrap.
+5. **Localization**: Sets hostname and timezone from Bitwarden secrets (`vps-hostname`, `vps-timezone`).
+6. **User Provisioning**: Creates the `deploy` user with restricted sudo access.
+7. **Kickstart**: Clones `platform-core` and hand-off to the internal `platform-bootstrap.sh`.
 
 ## 🔐 Security Design
 
-This repository follows security-by-design principles:
-
-- **Zero Secrets in Code**: No secrets, tokens, or credentials reside in this repository. All secrets are fetched at runtime.
-- **Forced Token Prompt**: `bootstrap.sh` enforces a masked runtime prompt for `BWS_TOKEN`, preventing exposure in process lists or shell history.
-- **Zero Open Ports**: The VPS has no inbound ports open. All ingress is handled via Cloudflare Tunnel (outbound-only).
-- **SSH via Mesh**: SSH access is restricted to the Tailscale mesh network only.
+Follows security-by-design principles:
+- **Zero Secrets in Code**: No secrets reside in this repository.
+- **Forced Token Prompt**: Masked runtime prompt for `BWS_TOKEN` prevents process/history exposure.
+- **Zero Open Ports**: VPS has no inbound ports open. All traffic via Cloudflare Tunnel.
+- **SSH via Mesh**: Access is restricted to the Tailscale mesh network only.
 
 ## 🛡️ Reporting a Vulnerability
 
-If you discover a security vulnerability, please do NOT open a public issue. Email security concerns to: **security@loansemporium.com**. We acknowledge reports within 48 hours.
+If you discover a security vulnerability, please do NOT open a public issue. Email: **security@loansemporium.com**.
 
-## Prerequisites
+## ✅ Verification & Troubleshooting
+
+After bootstrap completes:
+
+```bash
+# Verify Platform status
+platform status
+
+# Check Docker containers
+docker ps
+
+# Check networking
+tailscale status
+cloudflared tunnel list
+```
+
+### Common Troubleshooting
+- **Failed Bootstrap**: Check system logs with `journalctl -u docker` or `/var/log/syslog`.
+- **Secret Error**: Ensure your `BWS_TOKEN` is valid and has access to the `loans_emporium_platform` project.
+- **Tailscale Fail**: Run `tailscale status` to verify your node is authenticated to the mesh.
+
+## 📋 Prerequisites
 
 | Requirement | Purpose |
 |-------------|---------|
-| Ubuntu 22.04+ VPS | Target production server |
-| Bitwarden Token | Fetches all infra & app secrets |
-| GitHub PAT | Clones the private `platform-core` |
+| Ubuntu 22.04+ VPS | Target production server (2GB RAM min) |
+| Bitwarden Token | Prodvides access to infra & app secrets |
+| GitHub PAT | Required to clone the private `platform-core` |
 
-## The PaaS Hand-off
+## 🚀 Next Steps
 
-After `ignite` completes, the machine is ready for the **App Life-cycle**.
-- All management is done via the `platform` command at `/opt/platform/bin/platform`.
-- Applications are added via `platform app add <repo>`.
+1. **Verify**: Run `platform doctor` to check system health.
+2. **Deploy**: Run `platform app add <repo-url>` to host your first app.
+3. **Audit**: Review the audit report at `/opt/platform/docs/05-compliance/01-audit.md`.
 
 ---
 
