@@ -3,7 +3,7 @@
 # Part of ignite (PUBLIC repository)
 #
 # Usage:
-#   BWS_TOKEN=your-token bash <(curl -fsSL https://raw.githubusercontent.com/your-org/ignite/main/bootstrap.sh)
+#   bash <(curl -fsSL https://raw.githubusercontent.com/your-org/ignite/main/bootstrap.sh)
 #
 # This script:
 #   1. Installs Docker, Git, curl, jq
@@ -53,13 +53,13 @@ timedatectl set-timezone Asia/Kolkata || true
 hostnamectl set-hostname loans-platform-vps-1 || true
 echo "127.0.0.1 loans-platform-vps-1" >> /etc/hosts
 
-if [[ -z "${BWS_TOKEN:-}" ]]; then
-    log_warn "BWS_TOKEN environment variable not found."
-    echo -n -e "${YELLOW}[PROMPT]${NC} Please enter your Bitwarden Secrets Manager Access Token: "
-    read -s BWS_TOKEN
-    echo "" # Add newline after silent input
-    export BWS_TOKEN
-fi
+# Forced Security Prompt: Avoid upfront token supply to prevent history/process exposure
+log_info "Security check: Forced Bitwarden Token Prompt..."
+unset BWS_TOKEN # Clear any pre-supplied token from environment
+echo -n -e "${YELLOW}[PROMPT]${NC} Please enter your Bitwarden Secrets Manager Access Token: "
+read -s BWS_TOKEN
+echo "" # Add newline after silent input
+export BWS_TOKEN
 
 if [[ -z "$BWS_TOKEN" ]]; then
     log_error "BWS_TOKEN is required to proceed. Bootstrap aborted."
