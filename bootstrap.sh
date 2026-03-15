@@ -177,6 +177,21 @@ fi
 log_info "Secrets fetched successfully."
 
 # ─────────────────────────────────────────────────────────────────
+# PHASE 6.5: Docker Login to GHCR (V8.2 Standard)
+# ─────────────────────────────────────────────────────────────────
+
+log_info "Phase 6.5: Authenticating with GHCR..."
+GHCR_TOKEN=$(bws secret get "github-ghcr-token" --access-token "$BWS_TOKEN" -o json | jq -r '.value' 2>/dev/null || echo "")
+
+if [[ -n "$GHCR_TOKEN" && "$GHCR_TOKEN" != "null" ]]; then
+    echo "$GHCR_TOKEN" | docker login ghcr.io -u "${GITHUB_ORG}" --password-stdin > /dev/null 2>&1
+    log_info "GHCR authenticated successfully."
+    unset GHCR_TOKEN
+else
+    log_warn "GHCR token not found. Private image pulls may fail."
+fi
+
+# ─────────────────────────────────────────────────────────────────
 # PHASE 7: Clone Platform-Core
 # ─────────────────────────────────────────────────────────────────
 
