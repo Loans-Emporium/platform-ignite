@@ -1,0 +1,5 @@
+# Generated files
+*.log
+*.env
+.DS_Store
+*.tmp

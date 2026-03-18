@@ -19,6 +19,12 @@ GITHUB_ORG="${GITHUB_ORG:-your-org}"
 GITHUB_REPO="platform-core"
 INSTALL_DIR="/opt/platform"
 
+# F-01/F-21: Read VERSION dynamically if available
+VERSION="V8.2" # Fallback
+if [[ -f "$INSTALL_DIR/VERSION" ]]; then
+    VERSION=$(cat "$INSTALL_DIR/VERSION")
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -31,7 +37,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 echo ""
 echo "╔════════════════════════════════════════════════════════════╗"
-echo "║     Loans Emporium Platform - ignite Bootstrap V8.1        ║"
+echo "║     Loans Emporium Platform - ignite Bootstrap $VERSION        ║"
 echo "╚════════════════════════════════════════════════════════════╝"
 echo ""
 
@@ -45,13 +51,8 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 0.5: System Localization
+# PHASE 0.5: Pre-Flight Prompt
 # ─────────────────────────────────────────────────────────────────
-
-log_info "Phase 0.5: Configuring system localization..."
-timedatectl set-timezone Asia/Kolkata || true
-hostnamectl set-hostname loans-platform-vps-1 || true
-echo "127.0.0.1 loans-platform-vps-1" >> /etc/hosts
 
 # Forced Security Prompt: Avoid upfront token supply to prevent history/process exposure
 log_info "Security check: Forced Bitwarden Token Prompt..."
@@ -166,15 +167,23 @@ fi
 log_info "Phase 6: Fetching secrets from Bitwarden..."
 
 # Fetch GitHub PAT for cloning private repo
-GITHUB_TOKEN=$(bws secret get "github-pat" --access-token "$BWS_TOKEN" -o json | jq -r '.value')
+GITHUB_TOKEN=$(bws secret get "github-pat" --access-token "$BWS_TOKEN" -o json | jq -r '.value' 2>/dev/null || echo "")
 
 if [[ -z "$GITHUB_TOKEN" || "$GITHUB_TOKEN" == "null" ]]; then
-    log_error "Failed to fetch GitHub PAT from Bitwarden."
-    log_error "Ensure secret 'github-pat' exists in Bitwarden Secrets Manager."
-    exit 1
+    log_warn "Failed to fetch GitHub PAT. Defaulting to public clone."
+    GITHUB_TOKEN=""
 fi
 
-log_info "Secrets fetched successfully."
+# Localization
+VPS_TZ=$(bws secret get "vps-timezone" --access-token "$BWS_TOKEN" -o json | jq -r '.value' 2>/dev/null || echo "Asia/Kolkata")
+VPS_HOSTNAME=$(bws secret get "vps-hostname" --access-token "$BWS_TOKEN" -o json | jq -r '.value' 2>/dev/null || echo "loans-platform-vps-1")
+
+log_info "Phase 6.1: Applying system localization..."
+timedatectl set-timezone "$VPS_TZ" || true
+hostnamectl set-hostname "$VPS_HOSTNAME" || true
+echo "127.0.0.1 $VPS_HOSTNAME" >> /etc/hosts
+
+log_info "Secrets and localization applied successfully."
 
 # ─────────────────────────────────────────────────────────────────
 # PHASE 6.5: Docker Login to GHCR (V8.2 Standard)
@@ -198,7 +207,11 @@ fi
 log_info "Phase 7: Cloning platform-core..."
 
 rm -rf "$INSTALL_DIR"
-git -c http.extraHeader="Authorization: Bearer ${GITHUB_TOKEN}" clone "https://github.com/${GITHUB_ORG}/${GITHUB_REPO}.git" "$INSTALL_DIR"
+if [[ -n "$GITHUB_TOKEN" ]]; then
+    git -c http.extraHeader="Authorization: Bearer ${GITHUB_TOKEN}" clone "https://github.com/${GITHUB_ORG}/${GITHUB_REPO}.git" "$INSTALL_DIR"
+else
+    git clone "https://github.com/${GITHUB_ORG}/${GITHUB_REPO}.git" "$INSTALL_DIR"
+fi
 unset GITHUB_TOKEN
 
 log_info "Platform-core cloned to $INSTALL_DIR"
