@@ -98,7 +98,9 @@ fi
 # ─────────────────────────────────────────────────────────────────
 get_bws_value() {
     local key="$1"
-    bws secret list --access-token "$BWS_TOKEN" -o json 2>/dev/null | jq -r --arg k "$key" '.[] | select(.key == $k) | .value' || echo ""
+    # Case-insensitive match using jq ascii_upcase comparison
+    bws secret list --access-token "$BWS_TOKEN" -o json 2>/dev/null | \
+        jq -r --arg k "$key" '.[] | select((.key | ascii_upcase) == ($k | ascii_upcase)) | .value' || echo ""
 }
 
 # ─────────────────────────────────────────────────────────────────
@@ -180,12 +182,7 @@ fi
 log_info "Phase 6: Fetching secrets from Bitwarden..."
 
 # Fetch GitHub PAT for cloning private repo
-GITHUB_TOKEN=$(get_bws_value "github-pat")
-
-if [[ -z "$GITHUB_TOKEN" || "$GITHUB_TOKEN" == "null" ]]; then
-    log_warn "Failed to fetch GitHub PAT. Defaulting to public clone."
-    GITHUB_TOKEN=""
-fi
+GITHUB_TOKEN=$(get_bws_value "GITHUB_PAT")
 
 # Localization
 VPS_TZ=$(get_bws_value "vps-timezone")
@@ -200,6 +197,21 @@ hostnamectl set-hostname "$VPS_HOSTNAME" || true
 echo "127.0.0.1 $VPS_HOSTNAME" >> /etc/hosts
 
 log_info "Secrets and localization applied successfully."
+
+# ─────────────────────────────────────────────────────────────────
+# PHASE 6.2: Secret Validation (Fail Fast)
+# ─────────────────────────────────────────────────────────────────
+
+log_info "Phase 6.2: Validating critical secrets..."
+
+if [[ -z "$GITHUB_TOKEN" || "$GITHUB_TOKEN" == "null" ]]; then
+    log_error "Critical Secret Missing: GITHUB_PAT (GitHub Personal Access Token)"
+    log_error "Authentication is required to clone private repository platform-core."
+    log_warn "Please ensure GITHUB_PAT is defined in your Bitwarden Secrets Manager project."
+    exit 1
+fi
+
+log_info "Critical secrets validated."
 
 
 # ─────────────────────────────────────────────────────────────────
