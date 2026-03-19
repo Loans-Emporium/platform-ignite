@@ -261,8 +261,8 @@ if [[ -n "$DEPLOY_PASS" && "$DEPLOY_PASS" != "null" ]]; then
         echo "deploy:$DEPLOY_PASS" | chpasswd
         usermod -aG docker deploy
         
-        # Restricted Sudo: Only for service/platform commands
-        echo "deploy ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart docker, /usr/bin/docker *, /opt/platform/bin/platform *" > /etc/sudoers.d/deploy
+        # Restricted Sudo: Service/Platform commands + Maintenance
+        echo "deploy ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart docker, /usr/bin/docker *, /opt/platform/bin/platform *, /usr/sbin/reboot, /usr/sbin/shutdown, /usr/bin/apt, /usr/bin/apt-get, /usr/sbin/ufw" > /etc/sudoers.d/deploy
         
         mkdir -p /home/deploy/.ssh && chmod 700 /home/deploy/.ssh
         cp /root/.ssh/authorized_keys /home/deploy/.ssh/authorized_keys 2>/dev/null || true
