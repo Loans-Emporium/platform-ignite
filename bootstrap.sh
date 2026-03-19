@@ -248,6 +248,8 @@ log_info "Phase 8.5: Hardening system..."
 
 # 1. Deploy User Provisioning
 DEPLOY_PASS=$(get_bws_value "deploy-user-password")
+[[ -z "$DEPLOY_PASS" || "$DEPLOY_PASS" == "null" ]] && DEPLOY_PASS=$(get_bws_value "deploy_user_password")
+
 if [[ -n "$DEPLOY_PASS" && "$DEPLOY_PASS" != "null" ]]; then
     if ! id "deploy" &>/dev/null; then
         log_info "Creating 'deploy' user with restricted sudo..."
