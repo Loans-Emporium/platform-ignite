@@ -222,8 +222,10 @@ log_info "Phase 7: Cloning platform-core..."
 
 rm -rf "$INSTALL_DIR"
 if [[ -n "$GITHUB_TOKEN" ]]; then
-    git -c http.extraHeader="Authorization: Bearer ${GITHUB_TOKEN}" clone "https://github.com/${GITHUB_ORG}/${GITHUB_REPO}.git" "$INSTALL_DIR"
+    log_info "Attempting authenticated clone..."
+    git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_ORG}/${GITHUB_REPO}.git" "$INSTALL_DIR"
 else
+    log_warn "No token found, attempting public clone..."
     git clone "https://github.com/${GITHUB_ORG}/${GITHUB_REPO}.git" "$INSTALL_DIR"
 fi
 unset GITHUB_TOKEN
