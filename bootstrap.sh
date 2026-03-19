@@ -298,6 +298,11 @@ PROFILE
 # Write token to a root-only file
 echo "$BWS_TOKEN" > /opt/platform/config/.bws_token
 chmod 600 /opt/platform/config/.bws_token
+
+# 5. Phase 8.7: Ownership and Git Security (Hardening)
+log_info "Phase 8.7: Setting up operator permissions and Git security..."
+chown -R deploy:deploy /opt/platform/apps /opt/platform/logs /opt/platform/state /opt/platform/config
+git config --system --add safe.directory /opt/platform
 chown root:root /opt/platform/config/.bws_token
 
 # ─────────────────────────────────────────────────────────────────
