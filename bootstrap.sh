@@ -241,6 +241,11 @@ log_info "Phase 8: Triggering platform-bootstrap.sh..."
 export BWS_TOKEN="$BWS_TOKEN"
 bash "$INSTALL_DIR/bootstrap/platform-bootstrap.sh"
 
+# Global CLI Link
+log_info "Linking platform CLI to /usr/local/bin..."
+ln -sf "$INSTALL_DIR/bin/platform" /usr/local/bin/platform
+chmod +x "$INSTALL_DIR/bin/platform"
+
 # ─────────────────────────────────────────────────────────────────
 # PHASE 8.5: Security & Hygiene Hardening
 # ─────────────────────────────────────────────────────────────────
