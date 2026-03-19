@@ -119,7 +119,7 @@ fi
 TS_KEY=$(get_bws_value "TAILSCALE_AUTH_KEY")
 if [[ -n "$TS_KEY" && "$TS_KEY" != "null" ]]; then
     log_info "Phase 3.1: Authenticating Tailscale mesh network..."
-    tailscale up --authkey="$TS_KEY" > /dev/null 2>&1 || log_warn "Tailscale auto-join failed. You may need to run it manually."
+    tailscale up --authkey="$TS_KEY" --ssh > /dev/null 2>&1 || log_warn "Tailscale auto-join failed. You may need to run it manually."
     unset TS_KEY
 fi
 
