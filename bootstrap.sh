@@ -3,7 +3,7 @@
 # Part of ignite (PUBLIC repository)
 #
 # Usage:
-#   bash <(curl -fsSL https://raw.githubusercontent.com/your-org/ignite/main/bootstrap.sh)
+#   bash <(curl -fsSL https://raw.githubusercontent.com/Loans-Emporium/platform-ignite/main/bootstrap.sh)
 #
 # This script:
 #   1. Installs Docker, Git, curl, jq
@@ -15,7 +15,7 @@
 set -euo pipefail
 
 # Configuration
-GITHUB_ORG="${GITHUB_ORG:-your-org}"
+GITHUB_ORG="${GITHUB_ORG:-Loans-Emporium}"
 GITHUB_REPO="platform-core"
 INSTALL_DIR="/opt/platform"
 
@@ -133,12 +133,17 @@ fi
 
 if ! command -v bws &>/dev/null; then
     log_info "Phase 5: Installing Bitwarden Secrets Manager CLI..."
-    BWS_VERSION="0.5.0"
+    # N-03: Dynamically fetch latest bws version
+    BWS_VERSION=$(curl -fsSL "https://api.github.com/repos/bitwarden/sdk/releases/latest" | jq -r '.tag_name' | sed 's/bws-v//')
+    if [[ -z "$BWS_VERSION" || "$BWS_VERSION" == "null" ]]; then
+        log_warn "Failed to fetch latest bws version, falling back to 0.5.0"
+        BWS_VERSION="0.5.0"
+    fi
     curl -fsSL "https://github.com/bitwarden/sdk/releases/download/bws-v${BWS_VERSION}/bws-x86_64-unknown-linux-gnu-${BWS_VERSION}.zip" -o /tmp/bws.zip
     unzip -o /tmp/bws.zip -d /usr/local/bin/ > /dev/null 2>&1
     chmod +x /usr/local/bin/bws
     rm -f /tmp/bws.zip
-    log_info "bws CLI installed."
+    log_info "bws CLI (v${BWS_VERSION}) installed."
 else
     log_info "Phase 5: bws CLI already installed."
 fi
@@ -265,6 +270,18 @@ EOF
 log_info "Disabling root SSH login (PermitRootLogin no)..."
 sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
 systemctl reload sshd || true
+
+# 4. Phase 8.6: Persist BWS_TOKEN for operators and cron (N-01)
+log_info "Phase 8.6: Persisting BWS_TOKEN for operators and cron..."
+cat > /etc/profile.d/platform.sh <<'PROFILE'
+# Loans Emporium Platform — sourced at login
+export BWS_TOKEN="$(cat /opt/platform/config/.bws_token 2>/dev/null || true)"
+PROFILE
+
+# Write token to a root-only file
+echo "$BWS_TOKEN" > /opt/platform/config/.bws_token
+chmod 600 /opt/platform/config/.bws_token
+chown root:root /opt/platform/config/.bws_token
 
 # ─────────────────────────────────────────────────────────────────
 # PHASE 9: Complete

@@ -12,7 +12,7 @@
 ```bash
 # Hardens machine, installs runtimes, and clones PaaS control plane.
 # Forced Auth: The script will prompt for your BWS_TOKEN during execution.
-bash <(curl -fsSL https://raw.githubusercontent.com/your-org/ignite/main/bootstrap.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/Loans-Emporium/platform-ignite/main/bootstrap.sh)
 ```
 
 ## 🛠️ What This Does
