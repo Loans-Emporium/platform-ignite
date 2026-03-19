@@ -1,5 +1,5 @@
-# Generated files
-*.log
-*.env
-.DS_Store
+# Security overrides
+.bws_token
 *.tmp
+*.log
+.DS_Store

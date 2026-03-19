@@ -58,7 +58,7 @@ fi
 log_info "Security check: Forced Bitwarden Token Prompt..."
 unset BWS_TOKEN # Clear any pre-supplied token from environment
 echo -n -e "${YELLOW}[PROMPT]${NC} Please enter your Bitwarden Secrets Manager Access Token: "
-read -s BWS_TOKEN
+read -s BWS_TOKEN < /dev/tty
 echo "" # Add newline after silent input
 export BWS_TOKEN
 
@@ -94,6 +94,14 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────
+# Helper for Bitwarden Fetching (bws v1.x compatibility)
+# ─────────────────────────────────────────────────────────────────
+get_bws_value() {
+    local key="$1"
+    bws secret list --access-token "$BWS_TOKEN" -o json 2>/dev/null | jq -r --arg k "$key" '.[] | select(.key == $k) | .value' || echo ""
+}
+
+# ─────────────────────────────────────────────────────────────────
 # PHASE 3: Install Tailscale
 # ─────────────────────────────────────────────────────────────────
 
@@ -106,7 +114,7 @@ else
 fi
 
 # Attempt auto-join if Auth Key is in Bitwarden
-TS_KEY=$(bws secret get "TAILSCALE_AUTH_KEY" --access-token "$BWS_TOKEN" -o json | jq -r '.value' 2>/dev/null || echo "")
+TS_KEY=$(get_bws_value "TAILSCALE_AUTH_KEY")
 if [[ -n "$TS_KEY" && "$TS_KEY" != "null" ]]; then
     log_info "Phase 3.1: Authenticating Tailscale mesh network..."
     tailscale up --authkey="$TS_KEY" > /dev/null 2>&1 || log_warn "Tailscale auto-join failed. You may need to run it manually."
@@ -172,7 +180,7 @@ fi
 log_info "Phase 6: Fetching secrets from Bitwarden..."
 
 # Fetch GitHub PAT for cloning private repo
-GITHUB_TOKEN=$(bws secret get "github-pat" --access-token "$BWS_TOKEN" -o json | jq -r '.value' 2>/dev/null || echo "")
+GITHUB_TOKEN=$(get_bws_value "github-pat")
 
 if [[ -z "$GITHUB_TOKEN" || "$GITHUB_TOKEN" == "null" ]]; then
     log_warn "Failed to fetch GitHub PAT. Defaulting to public clone."
@@ -180,8 +188,11 @@ if [[ -z "$GITHUB_TOKEN" || "$GITHUB_TOKEN" == "null" ]]; then
 fi
 
 # Localization
-VPS_TZ=$(bws secret get "vps-timezone" --access-token "$BWS_TOKEN" -o json | jq -r '.value' 2>/dev/null || echo "Asia/Kolkata")
-VPS_HOSTNAME=$(bws secret get "vps-hostname" --access-token "$BWS_TOKEN" -o json | jq -r '.value' 2>/dev/null || echo "loans-platform-vps-1")
+VPS_TZ=$(get_bws_value "vps-timezone")
+[[ -z "$VPS_TZ" || "$VPS_TZ" == "null" ]] && VPS_TZ="Asia/Kolkata"
+
+VPS_HOSTNAME=$(get_bws_value "vps-hostname")
+[[ -z "$VPS_HOSTNAME" || "$VPS_HOSTNAME" == "null" ]] && VPS_HOSTNAME="loans-platform-vps-1"
 
 log_info "Phase 6.1: Applying system localization..."
 timedatectl set-timezone "$VPS_TZ" || true
@@ -190,20 +201,6 @@ echo "127.0.0.1 $VPS_HOSTNAME" >> /etc/hosts
 
 log_info "Secrets and localization applied successfully."
 
-# ─────────────────────────────────────────────────────────────────
-# PHASE 6.5: Docker Login to GHCR (V8.2 Standard)
-# ─────────────────────────────────────────────────────────────────
-
-log_info "Phase 6.5: Authenticating with GHCR..."
-GHCR_TOKEN=$(bws secret get "github-ghcr-token" --access-token "$BWS_TOKEN" -o json | jq -r '.value' 2>/dev/null || echo "")
-
-if [[ -n "$GHCR_TOKEN" && "$GHCR_TOKEN" != "null" ]]; then
-    echo "$GHCR_TOKEN" | docker login ghcr.io -u "${GITHUB_ORG}" --password-stdin > /dev/null 2>&1
-    log_info "GHCR authenticated successfully."
-    unset GHCR_TOKEN
-else
-    log_warn "GHCR token not found. Private image pulls may fail."
-fi
 
 # ─────────────────────────────────────────────────────────────────
 # PHASE 7: Clone Platform-Core
@@ -236,7 +233,7 @@ bash "$INSTALL_DIR/bootstrap/platform-bootstrap.sh"
 log_info "Phase 8.5: Hardening system..."
 
 # 1. Deploy User Provisioning
-DEPLOY_PASS=$(bws secret get "deploy-user-password" --access-token "$BWS_TOKEN" -o json | jq -r '.value' 2>/dev/null || echo "")
+DEPLOY_PASS=$(get_bws_value "deploy-user-password")
 if [[ -n "$DEPLOY_PASS" && "$DEPLOY_PASS" != "null" ]]; then
     if ! id "deploy" &>/dev/null; then
         log_info "Creating 'deploy' user with restricted sudo..."
