@@ -120,7 +120,9 @@ TS_KEY=$(get_bws_value "TAILSCALE_AUTH_KEY")
 if [[ -n "$TS_KEY" && "$TS_KEY" != "null" ]]; then
     log_info "Phase 3.1: Authenticating Tailscale mesh network..."
     tailscale up --authkey="$TS_KEY" --ssh > /dev/null 2>&1 || log_warn "Tailscale auto-join failed. You may need to run it manually."
-    unset TS_KEY
+else
+    log_warn "Phase 3.1: TAILSCALE_AUTH_KEY not found in Bitwarden. Skip auto-join."
+    log_warn "You MUST run 'tailscale up --ssh' manually before disconnecting root."
 fi
 
 # ─────────────────────────────────────────────────────────────────
@@ -284,7 +286,7 @@ EOF
 # 3. Disable Root SSH Login
 log_info "Disabling root SSH login (PermitRootLogin no)..."
 sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
-systemctl reload sshd || true
+systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null || true
 
 # 4. Phase 8.6: Persist BWS_TOKEN for operators and cron (N-01)
 log_info "Phase 8.6: Persisting BWS_TOKEN for operators and cron..."
