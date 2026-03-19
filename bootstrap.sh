@@ -143,17 +143,14 @@ fi
 
 if ! command -v bws &>/dev/null; then
     log_info "Phase 5: Installing Bitwarden Secrets Manager CLI..."
-    # N-03: Dynamically fetch latest bws version
-    BWS_VERSION=$(curl -fsSL "https://api.github.com/repos/bitwarden/sdk/releases/latest" | jq -r '.tag_name' | sed 's/bws-v//')
-    if [[ -z "$BWS_VERSION" || "$BWS_VERSION" == "null" ]]; then
-        log_warn "Failed to fetch latest bws version, falling back to 0.5.0"
-        BWS_VERSION="0.5.0"
+    # Use official Bitwarden installer for local-path reliability
+    curl -fsSL https://bws.bitwarden.com/install | sh > /dev/null 2>&1
+    
+    if ! command -v bws &>/dev/null; then
+        log_error "bws installation failed via official script."
+        exit 1
     fi
-    curl -fsSL "https://github.com/bitwarden/sdk/releases/download/bws-v${BWS_VERSION}/bws-x86_64-unknown-linux-gnu-${BWS_VERSION}.zip" -o /tmp/bws.zip
-    unzip -o /tmp/bws.zip -d /usr/local/bin/ > /dev/null 2>&1
-    chmod +x /usr/local/bin/bws
-    rm -f /tmp/bws.zip
-    log_info "bws CLI (v${BWS_VERSION}) installed."
+    log_info "bws CLI installed successfully."
 else
     log_info "Phase 5: bws CLI already installed."
 fi
