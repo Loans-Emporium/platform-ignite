@@ -41,7 +41,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 echo ""
 echo "╔════════════════════════════════════════════════════════════╗"
-echo "║     Loans Emporium Platform - ignite Bootstrap $VERSION        ║"
+echo "║     Loans Emporium Platform - ignite Bootstrap V8.3        ║"
 echo "╚════════════════════════════════════════════════════════════╝"
 echo ""
 
@@ -270,7 +270,7 @@ if [[ -n "$DEPLOY_PASS" && "$DEPLOY_PASS" != "null" ]]; then
         usermod -aG docker deploy
         
         # Restricted Sudo: Service/Platform commands + Maintenance (V8.2 Final)
-        echo "deploy ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart docker, /usr/bin/docker *, /opt/platform/bin/platform *, /usr/sbin/reboot, /usr/sbin/shutdown, /usr/bin/apt, /usr/bin/apt-get, /usr/sbin/ufw, /usr/bin/ln -sf /opt/platform/bin/platform /usr/local/bin/platform, /usr/bin/bash, /usr/bin/mount, /usr/bin/umount, /usr/bin/rm" > /etc/sudoers.d/deploy
+        echo "deploy ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart docker, /usr/bin/docker *, /opt/platform/bin/platform *, /usr/sbin/reboot, /usr/sbin/shutdown, /usr/bin/apt, /usr/bin/apt-get, /usr/sbin/ufw, /usr/bin/ln -sf /opt/platform/bin/platform /usr/local/bin/platform, /usr/bin/bash, /usr/bin/mount, /usr/bin/umount, /usr/bin/rm, /usr/bin/true, /usr/bin/crontab *, /usr/bin/ss *" > /etc/sudoers.d/deploy
         
         mkdir -p /home/deploy/.ssh && chmod 700 /home/deploy/.ssh
         cp /root/.ssh/authorized_keys /home/deploy/.ssh/authorized_keys 2>/dev/null || true
@@ -305,14 +305,14 @@ PROFILE
 
 # Write token to a root-only file
 echo "$BWS_TOKEN" > /opt/platform/config/.bws_token
-chmod 600 /opt/platform/config/.bws_token
+chmod 640 /opt/platform/config/.bws_token
 
 # 5. Phase 8.7: Ownership and Git Security (Hardening)
 log_info "Phase 8.7: Setting up operator permissions and Git security..."
 chown -R deploy:deploy /opt/platform
 chmod +x /opt/platform/bin/platform
 git config --system --add safe.directory /opt/platform
-chown root:root /opt/platform/config/.bws_token
+chown root:deploy /opt/platform/config/.bws_token
 
 # ─────────────────────────────────────────────────────────────────
 # PHASE 9: Complete
