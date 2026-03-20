@@ -19,6 +19,10 @@ GITHUB_ORG="${GITHUB_ORG:-Loans-Emporium}"
 GITHUB_REPO="platform-core"
 INSTALL_DIR="/opt/platform"
 
+# Localization (Manageable via Env or hardcoded here)
+VPS_HOSTNAME="${VPS_HOSTNAME:-loans-platform-vps-1}"
+VPS_TZ="${VPS_TZ:-Asia/Kolkata}"
+
 # F-01/F-21: Read VERSION dynamically if available
 VERSION="V8.3" # Fallback
 if [[ -f "$INSTALL_DIR/VERSION" ]]; then
@@ -131,13 +135,7 @@ fi
 # PHASE 3.5: System Localization (Host & Time)
 # ─────────────────────────────────────────────────────────────────
 
-log_info "Phase 3.5: Fetching system localization from Bitwarden..."
-
-VPS_TZ=$(get_bws_value "vps-timezone")
-[[ -z "$VPS_TZ" || "$VPS_TZ" == "null" ]] && VPS_TZ="Asia/Kolkata"
-
-VPS_HOSTNAME=$(get_bws_value "vps-hostname")
-[[ -z "$VPS_HOSTNAME" || "$VPS_HOSTNAME" == "null" ]] && VPS_HOSTNAME="loans-platform-vps-1"
+log_info "Phase 3.5: Applying system localization..."
 
 log_info "Applying localization: Hostname=$VPS_HOSTNAME, TZ=$VPS_TZ"
 timedatectl set-timezone "$VPS_TZ" || true
