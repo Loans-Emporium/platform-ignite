@@ -8,9 +8,8 @@
 # This script:
 #   1. Installs Docker, Git, curl, jq
 #   2. Installs Tailscale (mesh networking)
-#   3. Installs Cloudflared (tunnel)
-#   4. Installs bws CLI (Bitwarden Secrets Manager)
-#   5. Clones platform-core and triggers platform-bootstrap.sh
+#   3. Installs bws CLI (Bitwarden Secrets Manager)
+#   4. Clones platform-core and triggers platform-bootstrap.sh
 
 set -euo pipefail
 
@@ -31,7 +30,6 @@ fi
 
 # ── Canonical CLI Versions ──────────────────────────────────────────────────
 BWS_VERSION="1.0.0"
-CLOUDFLARED_VERSION="2024.6.1"
 
 # Colors for output
 RED='\033[0;31m'
@@ -165,20 +163,10 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 5: Install Cloudflared
+# PHASE 5: Placeholder (Cloudflared Removed)
 # ─────────────────────────────────────────────────────────────────
 
-INSTALLED_CF=$(cloudflared --version 2>/dev/null | awk '{print $3}' || echo "none")
-if [[ "$INSTALLED_CF" != "$CLOUDFLARED_VERSION" ]]; then
-    log_info "Phase 5: Installing Cloudflared v${CLOUDFLARED_VERSION}..."
-    curl -fsSL "https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-linux-amd64.deb" -o /tmp/cloudflared.deb
-    
-    dpkg -i /tmp/cloudflared.deb > /dev/null 2>&1
-    rm -f /tmp/cloudflared.deb
-    log_info "Cloudflared v${CLOUDFLARED_VERSION} installed and verified."
-else
-    log_info "Phase 5: Cloudflared already at target version v${CLOUDFLARED_VERSION}."
-fi
+log_info "Phase 5: Cloudflare Tunnel removed in favor of Caddy Proxy."
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -332,7 +320,6 @@ echo "╚═══════════════════════�
 echo ""
 echo "✅ Docker:      $(docker --version | cut -d' ' -f3 | tr -d ',')"
 echo "✅ Tailscale:   $(tailscale version | head -1)"
-echo "✅ Cloudflared: $(cloudflared version | head -1)"
 echo "✅ bws CLI:     $(bws --version)"
 echo "✅ Platform:    $INSTALL_DIR"
 echo ""

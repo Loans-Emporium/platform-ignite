@@ -20,8 +20,9 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Loans-Emporium/platform-igni
 The bootstrap script performs a 5-minute automated setup:
 
 1. **Runtimes**: Installs Docker Engine, Git, and **`yq`** (official binary for manifest parsing).
-2. **Hardening**: Configures UFW (Zero Open Ports), Tailscale (WireGuard Mesh), and Timezone/Hostname.
+2. **Hardening**: Configures UFW (Ports 80/443), Tailscale (WireGuard Mesh), and Timezone/Hostname.
 3. **Backup Engine**: Installs **`rclone`** for R2 synchronization.
+4. **Ingress Proxy**: Installs **Caddy** via Docker for automated TLS.
 4. **Secret Management**: Installs Bitwarden Secrets Manager CLI (`bws`).
 5. **Localization**: Sets hostname and timezone from Bitwarden secrets (`vps-hostname`, `vps-timezone`).
 6. **User Provisioning**: Creates the `deploy` user with restricted sudo access.
@@ -32,7 +33,7 @@ The bootstrap script performs a 5-minute automated setup:
 Follows security-by-design principles:
 - **Zero Secrets in Code**: No secrets reside in this repository.
 - **Forced Token Prompt**: Masked runtime prompt for `BWS_TOKEN` prevents process/history exposure.
-- **Zero Open Ports**: VPS has no inbound ports open. All traffic via Cloudflare Tunnel.
+- **Hardened Ingress**: VPS opens only 80 (Redirects/Certs) and 443 (HTTPS). No other ports exposed.
 - **SSH via Mesh**: Access is restricted to the Tailscale mesh network only.
 
 ## 🛡️ Reporting a Vulnerability
@@ -52,7 +53,7 @@ docker ps
 
 # Check networking
 tailscale status
-cloudflared tunnel list
+docker exec platform-caddy caddy fmt --stdout
 ```
 
 ### Common Troubleshooting
