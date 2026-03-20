@@ -262,7 +262,7 @@ if [[ -n "$DEPLOY_PASS" && "$DEPLOY_PASS" != "null" ]]; then
         usermod -aG docker deploy
         
         # Restricted Sudo: Service/Platform commands + Maintenance (V8.2 Final)
-        echo "deploy ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart docker, /usr/bin/docker *, /opt/platform/bin/platform *, /usr/sbin/reboot, /usr/sbin/shutdown, /usr/bin/apt, /usr/bin/apt-get, /usr/sbin/ufw, /usr/bin/ln -sf /opt/platform/bin/platform /usr/local/bin/platform, /usr/bin/bash, /usr/bin/mount, /usr/bin/umount, /usr/bin/rm, /usr/bin/true, /usr/bin/crontab *, /usr/bin/ss *, /usr/bin/git, /usr/bin/chown, /usr/bin/chmod" > /etc/sudoers.d/deploy
+        echo "deploy ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart docker, /usr/bin/docker *, /opt/platform/bin/platform *, /usr/sbin/reboot, /usr/sbin/shutdown, /usr/bin/apt, /usr/bin/apt-get, /usr/sbin/ufw, /usr/bin/ln -sf /opt/platform/bin/platform /usr/local/bin/platform, /usr/bin/bash, /usr/bin/mount, /usr/bin/umount, /usr/bin/rm, /usr/bin/true, /usr/bin/crontab *, /usr/bin/ss *, /usr/bin/git, /usr/bin/chown, /usr/bin/chmod, /usr/bin/find, /usr/bin/mkdir" > /etc/sudoers.d/deploy
         
         mkdir -p /home/deploy/.ssh && chmod 700 /home/deploy/.ssh
         cp /root/.ssh/authorized_keys /home/deploy/.ssh/authorized_keys 2>/dev/null || true
