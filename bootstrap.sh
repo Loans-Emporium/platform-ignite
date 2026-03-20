@@ -74,6 +74,16 @@ fi
 log_info "Pre-flight checks passed."
 
 # ─────────────────────────────────────────────────────────────────
+# Helper for Bitwarden Fetching (bws v1.x compatibility)
+# ─────────────────────────────────────────────────────────────────
+get_bws_value() {
+    local key="$1"
+    # Case-insensitive match using jq ascii_upcase comparison
+    bws secret list --access-token "$BWS_TOKEN" -o json 2>/dev/null | \
+        jq -r --arg k "$key" '.[] | select((.key | ascii_upcase) == ($k | ascii_upcase)) | .value' || echo ""
+}
+
+# ─────────────────────────────────────────────────────────────────
 # PHASE 1: Install Base Tools
 # ─────────────────────────────────────────────────────────────────
 
@@ -118,14 +128,21 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────
-# Helper for Bitwarden Fetching (bws v1.x compatibility)
+# PHASE 3.5: System Localization (Host & Time)
 # ─────────────────────────────────────────────────────────────────
-get_bws_value() {
-    local key="$1"
-    # Case-insensitive match using jq ascii_upcase comparison
-    bws secret list --access-token "$BWS_TOKEN" -o json 2>/dev/null | \
-        jq -r --arg k "$key" '.[] | select((.key | ascii_upcase) == ($k | ascii_upcase)) | .value' || echo ""
-}
+
+log_info "Phase 3.5: Fetching system localization from Bitwarden..."
+
+VPS_TZ=$(get_bws_value "vps-timezone")
+[[ -z "$VPS_TZ" || "$VPS_TZ" == "null" ]] && VPS_TZ="Asia/Kolkata"
+
+VPS_HOSTNAME=$(get_bws_value "vps-hostname")
+[[ -z "$VPS_HOSTNAME" || "$VPS_HOSTNAME" == "null" ]] && VPS_HOSTNAME="loans-platform-vps-1"
+
+log_info "Applying localization: Hostname=$VPS_HOSTNAME, TZ=$VPS_TZ"
+timedatectl set-timezone "$VPS_TZ" || true
+hostnamectl set-hostname "$VPS_HOSTNAME" || true
+echo "127.0.0.1 $VPS_HOSTNAME" >> /etc/hosts
 
 # ─────────────────────────────────────────────────────────────────
 # PHASE 4: Install Tailscale
@@ -142,8 +159,8 @@ fi
 # Attempt auto-join if Auth Key is in Bitwarden
 TS_KEY=$(get_bws_value "TAILSCALE_AUTH_KEY")
 if [[ -n "$TS_KEY" && "$TS_KEY" != "null" ]]; then
-    log_info "Phase 4.1: Authenticating Tailscale mesh network..."
-    tailscale up --authkey="$TS_KEY" --ssh > /dev/null 2>&1 || log_warn "Tailscale auto-join failed. You may need to run it manually."
+    log_info "Phase 4.1: Authenticating Tailscale mesh network ($VPS_HOSTNAME)..."
+    tailscale up --authkey="$TS_KEY" --hostname="$VPS_HOSTNAME" --ssh > /dev/null 2>&1 || log_warn "Tailscale auto-join failed. You may need to run it manually."
 else
     log_warn "Phase 4.1: TAILSCALE_AUTH_KEY not found in Bitwarden. Skip auto-join."
     log_warn "You MUST run 'tailscale up --ssh' manually before disconnecting root."
@@ -184,27 +201,15 @@ if ! command -v yq &>/dev/null; then
 fi
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 6: Fetch Secrets and Clone Platform-Core
+# PHASE 6: Fetch Platform Secrets and Clone Platform-Core
 # ─────────────────────────────────────────────────────────────────
 
-log_info "Phase 6: Fetching secrets from Bitwarden..."
+log_info "Phase 6: Fetching remaining secrets from Bitwarden..."
 
 # Fetch GitHub PAT for cloning private repo
 GITHUB_TOKEN=$(get_bws_value "GITHUB_PAT")
 
-# Localization
-VPS_TZ=$(get_bws_value "vps-timezone")
-[[ -z "$VPS_TZ" || "$VPS_TZ" == "null" ]] && VPS_TZ="Asia/Kolkata"
-
-VPS_HOSTNAME=$(get_bws_value "vps-hostname")
-[[ -z "$VPS_HOSTNAME" || "$VPS_HOSTNAME" == "null" ]] && VPS_HOSTNAME="loans-platform-vps-1"
-
-log_info "Phase 6.1: Applying system localization..."
-timedatectl set-timezone "$VPS_TZ" || true
-hostnamectl set-hostname "$VPS_HOSTNAME" || true
-echo "127.0.0.1 $VPS_HOSTNAME" >> /etc/hosts
-
-log_info "Secrets and localization applied successfully."
+log_info "Secrets and connectivity ready."
 
 # ─────────────────────────────────────────────────────────────────
 # PHASE 6.2: Secret Validation (Fail Fast)
