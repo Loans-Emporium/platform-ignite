@@ -85,16 +85,36 @@ apt-get upgrade -y -qq
 apt-get install -y -qq curl git jq unzip gpg > /dev/null 2>&1
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 2: Install Docker
+# PHASE 2: Install Bitwarden Secrets Manager CLI (bws)
+# ─────────────────────────────────────────────────────────────────
+
+INSTALLED_BWS=$(bws --version 2>/dev/null | awk '{print $2}' || echo "none")
+if [[ "$INSTALLED_BWS" != "$BWS_VERSION" ]]; then
+    log_info "Phase 2: Installing Bitwarden Secrets Manager CLI v${BWS_VERSION}..."
+    
+    # BWS 1.0.0 is distributed as a zip
+    curl -fsSL "https://github.com/bitwarden/sdk/releases/download/bws-v${BWS_VERSION}/bws-x86_64-unknown-linux-gnu-${BWS_VERSION}.zip" -o /tmp/bws.zip
+    
+    mkdir -p /tmp/bws_pkg
+    unzip -q /tmp/bws.zip -d /tmp/bws_pkg
+    install -m 755 /tmp/bws_pkg/bws /usr/local/bin/bws
+    rm -rf /tmp/bws.zip /tmp/bws_pkg
+    log_info "bws CLI v${BWS_VERSION} installed and verified."
+else
+    log_info "Phase 2: bws CLI already at target version v${BWS_VERSION}."
+fi
+
+# ─────────────────────────────────────────────────────────────────
+# PHASE 3: Install Docker
 # ─────────────────────────────────────────────────────────────────
 
 if ! command -v docker &>/dev/null; then
-    log_info "Phase 2: Installing Docker..."
+    log_info "Phase 3: Installing Docker..."
     curl -fsSL https://get.docker.com | bash > /dev/null 2>&1
     systemctl enable --now docker
     log_info "Docker installed and started."
 else
-    log_info "Phase 2: Docker already installed."
+    log_info "Phase 3: Docker already installed."
 fi
 
 # ─────────────────────────────────────────────────────────────────
@@ -108,62 +128,43 @@ get_bws_value() {
 }
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 3: Install Tailscale
+# PHASE 4: Install Tailscale
 # ─────────────────────────────────────────────────────────────────
 
 if ! command -v tailscale &>/dev/null; then
-    log_info "Phase 3: Installing Tailscale..."
+    log_info "Phase 4: Installing Tailscale..."
     curl -fsSL https://tailscale.com/install.sh | bash > /dev/null 2>&1
     log_info "Tailscale installed."
 else
-    log_info "Phase 3: Tailscale already installed."
+    log_info "Phase 4: Tailscale already installed."
 fi
 
 # Attempt auto-join if Auth Key is in Bitwarden
 TS_KEY=$(get_bws_value "TAILSCALE_AUTH_KEY")
 if [[ -n "$TS_KEY" && "$TS_KEY" != "null" ]]; then
-    log_info "Phase 3.1: Authenticating Tailscale mesh network..."
+    log_info "Phase 4.1: Authenticating Tailscale mesh network..."
     tailscale up --authkey="$TS_KEY" --ssh > /dev/null 2>&1 || log_warn "Tailscale auto-join failed. You may need to run it manually."
 else
-    log_warn "Phase 3.1: TAILSCALE_AUTH_KEY not found in Bitwarden. Skip auto-join."
+    log_warn "Phase 4.1: TAILSCALE_AUTH_KEY not found in Bitwarden. Skip auto-join."
     log_warn "You MUST run 'tailscale up --ssh' manually before disconnecting root."
 fi
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 4: Install Cloudflared
+# PHASE 5: Install Cloudflared
 # ─────────────────────────────────────────────────────────────────
 
 INSTALLED_CF=$(cloudflared --version 2>/dev/null | awk '{print $3}' || echo "none")
 if [[ "$INSTALLED_CF" != "$CLOUDFLARED_VERSION" ]]; then
-    log_info "Phase 4: Installing Cloudflared v${CLOUDFLARED_VERSION}..."
+    log_info "Phase 5: Installing Cloudflared v${CLOUDFLARED_VERSION}..."
     curl -fsSL "https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-linux-amd64.deb" -o /tmp/cloudflared.deb
     
     dpkg -i /tmp/cloudflared.deb > /dev/null 2>&1
     rm -f /tmp/cloudflared.deb
     log_info "Cloudflared v${CLOUDFLARED_VERSION} installed and verified."
 else
-    log_info "Phase 4: Cloudflared already at target version v${CLOUDFLARED_VERSION}."
+    log_info "Phase 5: Cloudflared already at target version v${CLOUDFLARED_VERSION}."
 fi
 
-# ─────────────────────────────────────────────────────────────────
-# PHASE 5: Install Bitwarden Secrets Manager CLI (bws)
-# ─────────────────────────────────────────────────────────────────
-
-INSTALLED_BWS=$(bws --version 2>/dev/null | awk '{print $2}' || echo "none")
-if [[ "$INSTALLED_BWS" != "$BWS_VERSION" ]]; then
-    log_info "Phase 5: Installing Bitwarden Secrets Manager CLI v${BWS_VERSION}..."
-    
-    # BWS 1.0.0 is distributed as a zip
-    curl -fsSL "https://github.com/bitwarden/sdk/releases/download/bws-v${BWS_VERSION}/bws-x86_64-unknown-linux-gnu-${BWS_VERSION}.zip" -o /tmp/bws.zip
-    
-    mkdir -p /tmp/bws_pkg
-    unzip -q /tmp/bws.zip -d /tmp/bws_pkg
-    install -m 755 /tmp/bws_pkg/bws /usr/local/bin/bws
-    rm -rf /tmp/bws.zip /tmp/bws_pkg
-    log_info "bws CLI v${BWS_VERSION} installed and verified."
-else
-    log_info "Phase 5: bws CLI already at target version v${BWS_VERSION}."
-fi
 
 # ─────────────────────────────────────────────────────────────────
 # PHASE 5.5: Install Rclone and YQ
