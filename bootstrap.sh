@@ -20,7 +20,7 @@ GITHUB_REPO="platform-core"
 INSTALL_DIR="/opt/platform"
 
 # F-01/F-21: Read VERSION dynamically if available
-VERSION="V8.2" # Fallback
+VERSION="V8.3" # Fallback
 if [[ -f "$INSTALL_DIR/VERSION" ]]; then
     VERSION=$(cat "$INSTALL_DIR/VERSION")
 fi
