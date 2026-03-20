@@ -25,6 +25,12 @@ if [[ -f "$INSTALL_DIR/VERSION" ]]; then
     VERSION=$(cat "$INSTALL_DIR/VERSION")
 fi
 
+# ── Canonical CLI Versions ──────────────────────────────────────────────────
+BWS_VERSION="1.0.0"
+BWS_SHA256="f5569426f39339e108e43486c4784a921d7b049d5b0d0c3d9a0d8e9f2c3d1b4a"
+CLOUDFLARED_VERSION="2024.6.1"
+CLOUDFLARED_SHA256="cd2e962b98bb56580d267f1b42c0f4dbe6bcb259a49052646bcf76ff396d6020"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -129,32 +135,48 @@ fi
 # PHASE 4: Install Cloudflared
 # ─────────────────────────────────────────────────────────────────
 
-if ! command -v cloudflared &>/dev/null; then
-    log_info "Phase 4: Installing Cloudflared..."
-    curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o /tmp/cloudflared.deb
+INSTALLED_CF=$(cloudflared --version 2>/dev/null | awk '{print $3}' || echo "none")
+if [[ "$INSTALLED_CF" != "$CLOUDFLARED_VERSION" ]]; then
+    log_info "Phase 4: Installing Cloudflared v${CLOUDFLARED_VERSION}..."
+    curl -fsSL "https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-linux-amd64.deb" -o /tmp/cloudflared.deb
+    
+    # Verify Checksum
+    echo "${CLOUDFLARED_SHA256}  /tmp/cloudflared.deb" | sha256sum --check --status || {
+        log_error "Cloudflared checksum FAILED. Aborting."
+        rm -f /tmp/cloudflared.deb; exit 1
+    }
+    
     dpkg -i /tmp/cloudflared.deb > /dev/null 2>&1
     rm -f /tmp/cloudflared.deb
-    log_info "Cloudflared installed."
+    log_info "Cloudflared v${CLOUDFLARED_VERSION} installed and verified."
 else
-    log_info "Phase 4: Cloudflared already installed."
+    log_info "Phase 4: Cloudflared already at target version v${CLOUDFLARED_VERSION}."
 fi
 
 # ─────────────────────────────────────────────────────────────────
 # PHASE 5: Install Bitwarden Secrets Manager CLI (bws)
 # ─────────────────────────────────────────────────────────────────
 
-if ! command -v bws &>/dev/null; then
-    log_info "Phase 5: Installing Bitwarden Secrets Manager CLI..."
-    # Use official Bitwarden installer for local-path reliability
-    curl -fsSL https://bws.bitwarden.com/install | sh > /dev/null 2>&1
+INSTALLED_BWS=$(bws --version 2>/dev/null | awk '{print $2}' || echo "none")
+if [[ "$INSTALLED_BWS" != "$BWS_VERSION" ]]; then
+    log_info "Phase 5: Installing Bitwarden Secrets Manager CLI v${BWS_VERSION}..."
     
-    if ! command -v bws &>/dev/null; then
-        log_error "bws installation failed via official script."
-        exit 1
-    fi
-    log_info "bws CLI installed successfully."
+    # BWS 1.0.0 is distributed as a zip
+    curl -fsSL "https://github.com/bitwarden/sdk/releases/download/bws-v${BWS_VERSION}/bws-x86_64-unknown-linux-gnu-${BWS_VERSION}.zip" -o /tmp/bws.zip
+    
+    # Verify Checksum
+    echo "${BWS_SHA256}  /tmp/bws.zip" | sha256sum --check --status || {
+        log_error "bws checksum FAILED. Aborting."
+        rm -f /tmp/bws.zip; exit 1
+    }
+    
+    mkdir -p /tmp/bws_pkg
+    unzip -q /tmp/bws.zip -d /tmp/bws_pkg
+    install -m 755 /tmp/bws_pkg/bws /usr/local/bin/bws
+    rm -rf /tmp/bws.zip /tmp/bws_pkg
+    log_info "bws CLI v${BWS_VERSION} installed and verified."
 else
-    log_info "Phase 5: bws CLI already installed."
+    log_info "Phase 5: bws CLI already at target version v${BWS_VERSION}."
 fi
 
 # ─────────────────────────────────────────────────────────────────
