@@ -301,7 +301,7 @@ chmod 640 /opt/platform/config/.bws_token
 
 # 5. Phase 8.7: Ownership and Git Security (Hardening)
 log_info "Phase 8.7: Setting up operator permissions and Git security..."
-chown -R deploy:deploy /opt/platform
+chown -R deploy:deploy /opt/platform /etc/loans-platform
 chmod +x /opt/platform/bin/platform
 git config --system --add safe.directory /opt/platform
 chown root:deploy /opt/platform/config/.bws_token /opt/platform/config/rclone.conf
