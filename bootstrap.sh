@@ -312,7 +312,8 @@ log_info "Phase 8.7: Setting up operator permissions and Git security..."
 chown -R deploy:deploy /opt/platform
 chmod +x /opt/platform/bin/platform
 git config --system --add safe.directory /opt/platform
-chown root:deploy /opt/platform/config/.bws_token
+chown root:deploy /opt/platform/config/.bws_token /opt/platform/config/rclone.conf
+chmod 640 /opt/platform/config/.bws_token /opt/platform/config/rclone.conf
 
 # ─────────────────────────────────────────────────────────────────
 # PHASE 9: Complete
