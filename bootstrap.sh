@@ -42,6 +42,15 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 
+verify_checksum() {
+    local file="$1"
+    local expected_sha="$2"
+    echo "${expected_sha}  ${file}" | sha256sum --check --status || {
+        log_error "Checksum verification failed for ${file}!"
+        exit 1
+    }
+}
+
 echo ""
 echo "╔════════════════════════════════════════════════════════════╗"
 echo "║     Loans Emporium Platform - ignite Bootstrap V11.0       ║"
@@ -78,7 +87,10 @@ apt-get update -qq && apt-get install -y -qq curl git jq unzip gpg wget postgres
 # ─────────────────────────────────────────────────────────────────
 if ! command -v docker &>/dev/null; then
     log_info "Phase 2: Installing Docker Engine..."
-    curl -fsSL https://get.docker.com | bash > /dev/null 2>&1
+    curl -fsSL https://get.docker.com -o /tmp/install-docker.sh
+    # Note: We rely on the official installer's integrity for the script itself, 
+    # but we force the repo check during apt-get.
+    bash /tmp/install-docker.sh > /dev/null 2>&1
     systemctl enable --now docker
     log_success "Docker installed and started."
 else
@@ -90,10 +102,14 @@ fi
 # ─────────────────────────────────────────────────────────────────
 log_info "Phase 3: Installing Rclone & YQ..."
 if ! command -v rclone &>/dev/null; then
-    curl -fsSL https://rclone.org/install.sh | bash > /dev/null 2>&1
+    curl -fsSL https://rclone.org/install.sh -o /tmp/install-rclone.sh
+    bash /tmp/install-rclone.sh > /dev/null 2>&1
 fi
 if ! command -v yq &>/dev/null; then
-    wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq > /dev/null 2>&1
+    YQ_VER="v4.44.3"
+    YQ_SHA="887c956cc65860d5c074e6456075c75ed9f30e9d6d7aa9d1c1432f808759695d"
+    wget -q "https://github.com/mikefarah/yq/releases/download/${YQ_VER}/yq_linux_amd64" -O /usr/local/bin/yq
+    verify_checksum "/usr/local/bin/yq" "$YQ_SHA"
     chmod +x /usr/local/bin/yq
 fi
 log_success "Utilities installed."
@@ -149,9 +165,9 @@ unset GITHUB_TOKEN
 log_success "Platform source cloned to $INSTALL_DIR."
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 7: Network & Localization
+# PHASE 7: Tailscale Join
 # ─────────────────────────────────────────────────────────────────
-log_info "Phase 7: Configuring network (Tailscale) & Localization..."
+log_info "Phase 7: Configuring Tailscale mesh networking..."
 
 # Tailscale setup
 if ! command -v tailscale &>/dev/null; then
@@ -164,6 +180,22 @@ if [[ -n "$TS_KEY" && "$TS_KEY" != "null" ]]; then
     log_success "Tailscale mesh joined."
 fi
 
+# ─────────────────────────────────────────────────────────────────
+# PHASE 8: Network Hardening (UFW) & Localization
+# ─────────────────────────────────────────────────────────────────
+log_info "Phase 8: Enforcing network lockdown (UFW) & Localization..."
+apt-get install -y -qq ufw > /dev/null 2>&1
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw deny 22/tcp
+if ip addr show tailscale0 &>/dev/null; then
+    ufw allow in on tailscale0
+    log_success "Tailscale interface recognized. Firewall rules applied."
+fi
+ufw --force enable
+
 # Hostname & TZ
 timedatectl set-timezone "$VPS_TZ" || true
 hostnamectl set-hostname "$VPS_HOSTNAME" || true
@@ -171,28 +203,31 @@ echo "127.0.0.1 $VPS_HOSTNAME" >> /etc/hosts
 log_success "System localization applied."
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 8: Platform Orchestration (Sub-Bootstrap)
+# PHASE 9: Platform Orchestration (Sub-Bootstrap)
 # ─────────────────────────────────────────────────────────────────
-log_info "Phase 8: Triggering interior platform-bootstrap..."
-export BWS_TOKEN="$BWS_TOKEN"
-bash "$INSTALL_DIR/bootstrap/platform-bootstrap.sh"
+log_info "Phase 9: Triggering interior platform-bootstrap..."
+# V11.0: Pass token inline only to the interior bootstrap (Audit F-04)
+BWS_TOKEN="$BWS_TOKEN" bash "$INSTALL_DIR/bootstrap/platform-bootstrap.sh"
 ln -sf "$INSTALL_DIR/bin/platform" /usr/local/bin/platform
 chmod +x "$INSTALL_DIR/bin/platform"
 log_success "Platform CLI linked and initialized."
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 9: Security Hardening & Handover
+# PHASE 10: Security Hardening & Handover
 # ─────────────────────────────────────────────────────────────────
-log_info "Phase 9: Finalizing security hardening..."
+log_info "Phase 10: Finalizing security hardening..."
 
-# 1. BWS Persistence
+# 1. BWS Persistence (Hardened)
+mkdir -p /opt/platform/config
 echo "$BWS_TOKEN" > /opt/platform/config/.bws_token
-chmod 640 /opt/platform/config/.bws_token
-cat > /etc/profile.d/platform.sh <<'PROFILE'
-export BWS_TOKEN="$(cat /opt/platform/config/.bws_token 2>/dev/null || true)"
-PROFILE
+chmod 600 /opt/platform/config/.bws_token
+# V11.0: Removed profile.d export to prevent environment leakage
 
-# 2. Permissions & Owner
+# 2. Audit Trail
+mkdir -p /opt/platform/state
+(cd "$INSTALL_DIR" && git rev-parse HEAD) > /opt/platform/state/bootstrap-sha
+
+# 3. Permissions & Owner
 chown -R root:root /opt/platform /etc/loans-platform
 git config --system --add safe.directory /opt/platform
 
