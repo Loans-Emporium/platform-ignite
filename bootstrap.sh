@@ -19,6 +19,12 @@ GITHUB_ORG="${GITHUB_ORG:-Loans-Emporium}"
 GITHUB_REPO="platform-core"
 INSTALL_DIR="/opt/platform"
 
+# Colors for output (Moved to top for early prompts)
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
 # Localization & Identity (Audit N-12 Hardening)
 if [[ -z "${VPS_HOSTNAME:-}" ]]; then
     echo -e "${YELLOW}[PROMPT]${NC} VPS_HOSTNAME is not set in environment."
@@ -37,11 +43,9 @@ fi
 BWS_VERSION="1.0.0"
 DOCKER_CE_VERSION="26.0.0"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# ── Canonical CLI Versions ──────────────────────────────────────────────────
+BWS_VERSION="1.0.0"
+DOCKER_CE_VERSION="26.0.0"
 
 log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
