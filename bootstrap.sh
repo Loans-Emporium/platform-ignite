@@ -200,10 +200,30 @@ if [[ -z "$GITHUB_TOKEN" || "$GITHUB_TOKEN" == "null" ]]; then
     log_error "Critical Secret Missing: GITHUB_PAT. Clone failed."
     exit 1
 fi
-rm -rf "$INSTALL_DIR"
-git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_ORG}/${GITHUB_REPO}.git" "$INSTALL_DIR" > /dev/null 2>&1
+
+# V11.1.3: Surgical Refresh (Preserves App State & Configs)
+if [[ -d "$INSTALL_DIR" ]]; then
+    log_warn "Existing platform detected. Refreshing core libraries only..."
+    # Preserve: apps/, config/, state/, backups/, logs/
+    # Delete: bin/, lib/, scripts/, infrastructure/, docs/, .git/
+    rm -rf "$INSTALL_DIR/bin" "$INSTALL_DIR/lib" "$INSTALL_DIR/scripts" \
+           "$INSTALL_DIR/infrastructure" "$INSTALL_DIR/docs" "$INSTALL_DIR/.git" \
+           "$INSTALL_DIR/VERSION" "$INSTALL_DIR/CANONICAL_STACK" 2>/dev/null || true
+else
+    mkdir -p "$INSTALL_DIR"
+fi
+
+# Clone into temporary directory and move to avoid git clone --non-empty error
+tmp_clone=$(mktemp -d)
+if git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_ORG}/${GITHUB_REPO}.git" "$tmp_clone" > /dev/null 2>&1; then
+    cp -rv "$tmp_clone/." "$INSTALL_DIR/" > /dev/null
+    rm -rf "$tmp_clone"
+else
+    log_all_error "Git clone failed. Check your GITHUB_PAT and network."
+    exit 1
+fi
 unset GITHUB_TOKEN
-log_success "Platform source cloned to $INSTALL_DIR."
+log_success "Platform source synchronized at $INSTALL_DIR (State Preserved)."
 
 # V11.0.2: Repository Version Sync Enforcement (Audit N-13)
 CORE_STACK="$INSTALL_DIR/CANONICAL_STACK"
