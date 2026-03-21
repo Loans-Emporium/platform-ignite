@@ -23,7 +23,7 @@ VPS_HOSTNAME="${VPS_HOSTNAME:-loans-platform-vps-1}"
 VPS_TZ="${VPS_TZ:-Asia/Kolkata}"
 
 # F-01/F-21: Read VERSION dynamically if available
-VERSION="V8.3" # Fallback
+VERSION="10.5" # V10.5 Release
 if [[ -f "$INSTALL_DIR/VERSION" ]]; then
     VERSION=$(cat "$INSTALL_DIR/VERSION")
 fi
@@ -43,7 +43,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 echo ""
 echo "╔════════════════════════════════════════════════════════════╗"
-echo "║     Loans Emporium Platform - ignite Bootstrap V8.3        ║"
+echo "║     Loans Emporium Platform - ignite Bootstrap V10.5       ║"
 echo "╚════════════════════════════════════════════════════════════╝"
 echo ""
 
@@ -76,6 +76,35 @@ fi
 log_info "Pre-flight checks passed."
 
 # ─────────────────────────────────────────────────────────────────
+# PHASE 0.6: Deploy User Provisioning (V10.5 Fix)
+# ─────────────────────────────────────────────────────────────────
+log_info "Phase 0.6: Provisioning 'deploy' operator..."
+
+# Fetch deploy password from Bitwarden immediately after pre-flight
+DEPLOY_PASS=$(get_bws_value "deploy-user-password")
+[[ -z "$DEPLOY_PASS" || "$DEPLOY_PASS" == "null" ]] && DEPLOY_PASS=$(get_bws_value "deploy_user_password")
+
+if [[ -n "$DEPLOY_PASS" && "$DEPLOY_PASS" != "null" ]]; then
+    if ! id "deploy" &>/dev/null; then
+        log_info "Creating 'deploy' user with restricted sudo..."
+        useradd -m -s /bin/bash deploy
+        echo "deploy:$DEPLOY_PASS" | chpasswd
+        usermod -aG docker deploy
+        
+        # Restricted Sudo: Service/Platform commands + Maintenance (V10.5 Final)
+        echo "deploy ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart docker, /usr/bin/docker *, /opt/platform/bin/platform *, /usr/sbin/reboot, /usr/sbin/shutdown, /usr/bin/apt, /usr/bin/apt-get, /usr/sbin/ufw, /usr/bin/ln -sf /opt/platform/bin/platform /usr/local/bin/platform, /usr/bin/bash, /usr/bin/mount, /usr/bin/umount, /usr/bin/rm, /usr/bin/true, /usr/bin/crontab *, /usr/bin/ss *, /usr/bin/git, /usr/bin/chown, /usr/bin/chmod, /usr/bin/find, /usr/bin/mkdir" > /etc/sudoers.d/deploy
+        
+        mkdir -p /home/deploy/.ssh && chmod 700 /home/deploy/.ssh
+        cp /root/.ssh/authorized_keys /home/deploy/.ssh/authorized_keys 2>/dev/null || true
+        chown -R deploy:deploy /home/deploy/.ssh
+        log_success "Deploy user created and hardened."
+    else
+        log_info "Deploy user already exists."
+    fi
+else
+    log_warn "deploy_user_password not found in Bitwarden. User creation skipped (Non-critical for root-only setup)."
+fi
+
 # Helper for Bitwarden Fetching (bws v1.x compatibility)
 # ─────────────────────────────────────────────────────────────────
 get_bws_value() {
@@ -249,30 +278,7 @@ log_info "Linking platform CLI to /usr/local/bin..."
 ln -sf "$INSTALL_DIR/bin/platform" /usr/local/bin/platform
 chmod +x "$INSTALL_DIR/bin/platform"
 
-# ─────────────────────────────────────────────────────────────────
-# PHASE 8.5: Security & Hygiene Hardening
-# ─────────────────────────────────────────────────────────────────
-log_info "Phase 8.5: Hardening system..."
-
-# 1. Deploy User Provisioning
-DEPLOY_PASS=$(get_bws_value "deploy-user-password")
-[[ -z "$DEPLOY_PASS" || "$DEPLOY_PASS" == "null" ]] && DEPLOY_PASS=$(get_bws_value "deploy_user_password")
-
-if [[ -n "$DEPLOY_PASS" && "$DEPLOY_PASS" != "null" ]]; then
-    if ! id "deploy" &>/dev/null; then
-        log_info "Creating 'deploy' user with restricted sudo..."
-        useradd -m -s /bin/bash deploy
-        echo "deploy:$DEPLOY_PASS" | chpasswd
-        usermod -aG docker deploy
-        
-        # Restricted Sudo: Service/Platform commands + Maintenance (V8.2 Final)
-        echo "deploy ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart docker, /usr/bin/docker *, /opt/platform/bin/platform *, /usr/sbin/reboot, /usr/sbin/shutdown, /usr/bin/apt, /usr/bin/apt-get, /usr/sbin/ufw, /usr/bin/ln -sf /opt/platform/bin/platform /usr/local/bin/platform, /usr/bin/bash, /usr/bin/mount, /usr/bin/umount, /usr/bin/rm, /usr/bin/true, /usr/bin/crontab *, /usr/bin/ss *, /usr/bin/git, /usr/bin/chown, /usr/bin/chmod, /usr/bin/find, /usr/bin/mkdir" > /etc/sudoers.d/deploy
-        
-        mkdir -p /home/deploy/.ssh && chmod 700 /home/deploy/.ssh
-        cp /root/.ssh/authorized_keys /home/deploy/.ssh/authorized_keys 2>/dev/null || true
-        chown -R deploy:deploy /home/deploy/.ssh
-    fi
-fi
+# 8.5: Security & Hygiene Hardening (Move to Phase 0.6)
 
 # 2. Log Hygiene (Logrotate)
 log_info "Configuring log rotation..."
