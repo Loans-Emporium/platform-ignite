@@ -12,18 +12,24 @@
 #   4. Clones platform-core and triggers platform-bootstrap.sh
 
 set -euo pipefail
+
+# ── Logging & UI Initialization (Audit N-12 early-access) ────────────────────
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
+log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
+
 trap 'log_error "Bootstrap failed at line $LINENO. Manual remediation required."; exit 1' ERR
 
 # Configuration
 GITHUB_ORG="${GITHUB_ORG:-Loans-Emporium}"
 GITHUB_REPO="platform-core"
 INSTALL_DIR="/opt/platform"
-
-# Colors for output (Moved to top for early prompts)
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
 
 # Localization & Identity (Audit N-12 Hardening)
 if [[ -z "${VPS_HOSTNAME:-}" ]]; then
@@ -46,11 +52,6 @@ DOCKER_CE_VERSION="26.0.0"
 # ── Canonical CLI Versions ──────────────────────────────────────────────────
 BWS_VERSION="1.0.0"
 DOCKER_CE_VERSION="26.0.0"
-
-log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
-log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
-log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
-log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 
 verify_checksum() {
     local file="$1"
