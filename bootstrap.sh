@@ -44,7 +44,7 @@ log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 
 echo ""
 echo "╔════════════════════════════════════════════════════════════╗"
-echo "║     Loans Emporium Platform - ignite Bootstrap V10.5       ║"
+echo "║     Loans Emporium Platform - ignite Bootstrap V11.0       ║"
 echo "╚════════════════════════════════════════════════════════════╝"
 echo ""
 
@@ -114,8 +114,9 @@ fi
 # Helper for Bitwarden Fetching (bws v1.x compatibility)
 get_bws_value() {
     local key="$1"
+    # V11.0: Hardened to prevent pipefail crashes on empty bws output
     bws secret list --access-token "$BWS_TOKEN" -o json 2>/dev/null | \
-        jq -r --arg k "$key" '.[] | select((.key | ascii_upcase) == ($k | ascii_upcase)) | .value' || echo ""
+        jq -r --arg k "$key" '.[] | select((.key | ascii_upcase) == ($k | ascii_upcase)) | .value' 2>/dev/null || echo ""
 }
 
 # ─────────────────────────────────────────────────────────────────
@@ -158,7 +159,8 @@ if ! command -v tailscale &>/dev/null; then
 fi
 TS_KEY=$(get_bws_value "TAILSCALE_AUTH_KEY")
 if [[ -n "$TS_KEY" && "$TS_KEY" != "null" ]]; then
-    tailscale up --authkey="$TS_KEY" --hostname="$VPS_HOSTNAME" --ssh > /dev/null 2>&1 || log_warn "Tailscale join failed."
+    log_info "Attempting Tailscale mesh join..."
+    tailscale up --authkey="$TS_KEY" --hostname="$VPS_HOSTNAME" --ssh || log_warn "Tailscale join failed. Continuing..."
     log_success "Tailscale mesh joined."
 fi
 
@@ -169,9 +171,9 @@ echo "127.0.0.1 $VPS_HOSTNAME" >> /etc/hosts
 log_success "System localization applied."
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 7: Platform Orchestration (Sub-Bootstrap)
+# PHASE 8: Platform Orchestration (Sub-Bootstrap)
 # ─────────────────────────────────────────────────────────────────
-log_info "Phase 7: Triggering interior platform-bootstrap..."
+log_info "Phase 8: Triggering interior platform-bootstrap..."
 export BWS_TOKEN="$BWS_TOKEN"
 bash "$INSTALL_DIR/bootstrap/platform-bootstrap.sh"
 ln -sf "$INSTALL_DIR/bin/platform" /usr/local/bin/platform
@@ -179,9 +181,9 @@ chmod +x "$INSTALL_DIR/bin/platform"
 log_success "Platform CLI linked and initialized."
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 10: Security Hardening & Handover
+# PHASE 9: Security Hardening & Handover
 # ─────────────────────────────────────────────────────────────────
-log_info "Phase 10: Finalizing security hardening..."
+log_info "Phase 9: Finalizing security hardening..."
 
 # 1. BWS Persistence
 echo "$BWS_TOKEN" > /opt/platform/config/.bws_token
