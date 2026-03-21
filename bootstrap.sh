@@ -67,10 +67,11 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 1: Install Base Tools
+# PHASE 1: OS Update & Base Tools
 # ─────────────────────────────────────────────────────────────────
-log_info "Phase 1: Installing base tools (Git, curl, jq, pg_dump 17)..."
+log_info "Phase 1: Updating OS and installing base tools (Git, curl, jq, pg_dump 17)..."
 export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq && apt-get upgrade -y -qq > /dev/null 2>&1
 
 # V10.6.9: Install Postgres 17 Client for Neon/Cloud compatibility
 if ! command -v pg_dump &>/dev/null || [[ $(pg_dump --version | grep -oE '[0-9]+' | head -1) -lt 17 ]]; then
