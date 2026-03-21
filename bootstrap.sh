@@ -92,9 +92,13 @@ get_bws_value() {
 log_info "Phase 1: Installing base tools..."
 
 export DEBIAN_FRONTEND=noninteractive
+# Add Official PostgreSQL Repository for Version 17 support (V10.3)
+curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list
+
 apt-get update -qq
 apt-get upgrade -y -qq
-apt-get install -y -qq curl git jq unzip gpg postgresql-client > /dev/null 2>&1
+apt-get install -y -qq curl git jq unzip gpg postgresql-client-17 > /dev/null 2>&1
 
 # ─────────────────────────────────────────────────────────────────
 # PHASE 2: Install Bitwarden Secrets Manager CLI (bws)
