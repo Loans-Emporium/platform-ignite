@@ -19,8 +19,8 @@ GITHUB_ORG="${GITHUB_ORG:-Loans-Emporium}"
 GITHUB_REPO="platform-core"
 INSTALL_DIR="/opt/platform"
 
-# Localization (Manageable via Env or hardcoded here)
-VPS_HOSTNAME="${VPS_HOSTNAME:-loans-platform-vps-1}"
+# Localization (Mandatory via Environment for F-11 Hardening)
+VPS_HOSTNAME="${VPS_HOSTNAME:?ERROR: VPS_HOSTNAME must be set before running bootstrap (Audit N-12)}"
 VPS_TZ="${VPS_TZ:-Asia/Kolkata}"
 
 # F-01/F-21: Read VERSION dynamically if available
@@ -88,13 +88,17 @@ apt-get update -qq && apt-get install -y -qq curl git jq unzip gpg wget postgres
 # PHASE 2: Install Docker Engine
 # ─────────────────────────────────────────────────────────────────
 if ! command -v docker &>/dev/null; then
-    log_info "Phase 2: Installing Docker Engine..."
-    curl -fsSL https://get.docker.com -o /tmp/install-docker.sh
-    # Note: We rely on the official installer's integrity for the script itself, 
-    # but we force the repo check during apt-get.
-    bash /tmp/install-docker.sh > /dev/null 2>&1
+    log_info "Phase 2: Installing Docker Engine via official signed repository (Audit N-02)..."
+    install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+    chmod a+r /etc/apt/keyrings/docker.asc
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+        tee /etc/apt/sources.list.d/docker.list > /dev/null
+    apt-get update -qq
+    # V11.0.1: Pinning Docker version for supply chain stability
+    apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin > /dev/null 2>&1
     systemctl enable --now docker
-    log_success "Docker installed and started."
+    log_success "Docker (stable) installed and started."
 else
     log_info "Phase 2: Docker already installed."
 fi
@@ -102,10 +106,17 @@ fi
 # ─────────────────────────────────────────────────────────────────
 # PHASE 3: Install Utility Binaries (Rclone, YQ)
 # ─────────────────────────────────────────────────────────────────
-log_info "Phase 3: Installing Rclone & YQ..."
+log_info "Phase 3: Installing Rclone & YQ (Checksum Verified)..."
 if ! command -v rclone &>/dev/null; then
-    curl -fsSL https://rclone.org/install.sh -o /tmp/install-rclone.sh
-    bash /tmp/install-rclone.sh > /dev/null 2>&1
+    # V11.0.1: Pinned Rclone binary + SHA-256 (Audit N-06/F-02)
+    RCLONE_VER="v1.66.0"
+    RCLONE_SHA="94a6132cc74e17ad30d5f8102d1b702ec8c9a3d607e1e695f2d05777402613d9"
+    wget -q "https://github.com/rclone/rclone/releases/download/${RCLONE_VER}/rclone-${RCLONE_VER}-linux-amd64.zip" -O /tmp/rclone.zip
+    verify_checksum "/tmp/rclone.zip" "$RCLONE_SHA"
+    unzip -q /tmp/rclone.zip -d /tmp/rclone_pkg
+    install -m 755 /tmp/rclone_pkg/rclone-*-linux-amd64/rclone /usr/local/bin/rclone
+    rm -rf /tmp/rclone.zip /tmp/rclone_pkg
+    log_success "Rclone ${RCLONE_VER} installed."
 fi
 if ! command -v yq &>/dev/null; then
     YQ_VER="v4.44.3"
@@ -113,8 +124,8 @@ if ! command -v yq &>/dev/null; then
     wget -q "https://github.com/mikefarah/yq/releases/download/${YQ_VER}/yq_linux_amd64" -O /usr/local/bin/yq
     verify_checksum "/usr/local/bin/yq" "$YQ_SHA"
     chmod +x /usr/local/bin/yq
+    log_success "YQ ${YQ_VER} installed."
 fi
-log_success "Utilities installed."
 
 # ─────────────────────────────────────────────────────────────────
 # PHASE 4: Install Bitwarden Secrets Manager (bws)
@@ -145,7 +156,8 @@ unset BWS_TOKEN
 echo -n -e "${YELLOW}[PROMPT]${NC} Please enter your Bitwarden Secrets Manager Access Token: "
 read -s BWS_TOKEN < /dev/tty
 echo ""
-export BWS_TOKEN
+# V11.0.1: DON'T export BWS_TOKEN. Keep it local to this shell (Audit N-01)
+# Sub-processes (like platform-bootstrap) will receive it explicitly.
 
 if [[ -z "$BWS_TOKEN" ]]; then
     log_error "BWS_TOKEN is required. Bootstrap aborted."
@@ -169,15 +181,24 @@ log_success "Platform source cloned to $INSTALL_DIR."
 # ─────────────────────────────────────────────────────────────────
 # PHASE 7: Tailscale Join
 # ─────────────────────────────────────────────────────────────────
-log_info "Phase 7: Configuring Tailscale mesh networking..."
+log_info "Phase 7: Configuring Tailscale mesh networking (Audit N-02/N-06)..."
 
-# Tailscale setup
+# Tailscale setup via official signed repository (Audit N-02)
 if ! command -v tailscale &>/dev/null; then
-    curl -fsSL https://tailscale.com/install.sh | bash > /dev/null 2>&1
+    log_info "Adding official Tailscale repository..."
+    mkdir -p /usr/share/keyrings
+    curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/$(. /etc/os-release && echo "$VERSION_CODENAME").noarmor.gpg | tee /usr/share/keyrings/tailscale-archive-keyring.gpg > /dev/null
+    curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/$(. /etc/os-release && echo "$VERSION_CODENAME").tailscale-keyring.list | tee /etc/apt/sources.list.d/tailscale.list > /dev/null
+    apt-get update -qq
+    # V11.0.1: Pinning Tailscale version (Audit F-03/N-02)
+    apt-get install -y -qq tailscale=1.62.1 > /dev/null 2>&1
 fi
+
 TS_KEY=$(get_bws_value "TAILSCALE_AUTH_KEY")
 if [[ -n "$TS_KEY" && "$TS_KEY" != "null" ]]; then
     log_info "Attempting Tailscale mesh join..."
+    # Ensure tailscaled is actually running
+    systemctl enable --now tailscaled > /dev/null 2>&1
     tailscale up --authkey="$TS_KEY" --hostname="$VPS_HOSTNAME" --ssh || log_warn "Tailscale join failed. Continuing..."
     log_success "Tailscale mesh joined."
 fi
