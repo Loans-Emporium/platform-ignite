@@ -19,7 +19,11 @@ GITHUB_ORG="${GITHUB_ORG:-Loans-Emporium}"
 GITHUB_REPO="platform-core"
 INSTALL_DIR="/opt/platform"
 
-# Localization (Mandatory via Environment for F-11 Hardening)
+# Localization & Identity (Audit N-12 Hardening)
+if [[ -z "${VPS_HOSTNAME:-}" ]]; then
+    echo -e "${YELLOW}[PROMPT]${NC} VPS_HOSTNAME is not set in environment."
+    read -p "Enter a unique Hostname for this VPS (e.g. srv-prod-01): " VPS_HOSTNAME
+fi
 VPS_HOSTNAME="${VPS_HOSTNAME:?ERROR: VPS_HOSTNAME must be set before running bootstrap (Audit N-12)}"
 VPS_TZ="${VPS_TZ:-Asia/Kolkata}"
 
