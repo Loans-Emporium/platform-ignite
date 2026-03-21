@@ -57,30 +57,53 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 0.5: Pre-Flight Prompt
+# PHASE 1: Install Base Tools
 # ─────────────────────────────────────────────────────────────────
+log_info "Phase 1: Installing base tools..."
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq && apt-get install -y -qq curl git jq unzip gpg > /dev/null 2>&1
 
-# Forced Security Prompt: Avoid upfront token supply to prevent history/process exposure
-log_info "Security check: Forced Bitwarden Token Prompt..."
-unset BWS_TOKEN # Clear any pre-supplied token from environment
+# ─────────────────────────────────────────────────────────────────
+# PHASE 2: Install Bitwarden Secrets Manager CLI (bws)
+# ─────────────────────────────────────────────────────────────────
+INSTALLED_BWS=$(bws --version 2>/dev/null | awk '{print $2}' || echo "none")
+if [[ "$INSTALLED_BWS" != "$BWS_VERSION" ]]; then
+    log_info "Phase 2: Installing Bitwarden Secrets Manager CLI v${BWS_VERSION}..."
+    curl -fsSL "https://github.com/bitwarden/sdk/releases/download/bws-v${BWS_VERSION}/bws-x86_64-unknown-linux-gnu-${BWS_VERSION}.zip" -o /tmp/bws.zip
+    mkdir -p /tmp/bws_pkg && unzip -q /tmp/bws.zip -d /tmp/bws_pkg
+    install -m 755 /tmp/bws_pkg/bws /usr/local/bin/bws
+    rm -rf /tmp/bws.zip /tmp/bws_pkg
+    log_info "bws CLI v${BWS_VERSION} installed."
+fi
+
+# ─────────────────────────────────────────────────────────────────
+# Helper for Bitwarden Fetching (bws v1.x compatibility)
+# ─────────────────────────────────────────────────────────────────
+get_bws_value() {
+    local key="$1"
+    bws secret list --access-token "$BWS_TOKEN" -o json 2>/dev/null | \
+        jq -r --arg k "$key" '.[] | select((.key | ascii_upcase) == ($k | ascii_upcase)) | .value' || echo ""
+}
+
+# ─────────────────────────────────────────────────────────────────
+# PHASE 3: Pre-Flight Prompt
+# ─────────────────────────────────────────────────────────────────
+log_info "Phase 3: Security checks & authentication..."
+unset BWS_TOKEN
 echo -n -e "${YELLOW}[PROMPT]${NC} Please enter your Bitwarden Secrets Manager Access Token: "
 read -s BWS_TOKEN < /dev/tty
-echo "" # Add newline after silent input
+echo ""
 export BWS_TOKEN
 
 if [[ -z "$BWS_TOKEN" ]]; then
-    log_error "BWS_TOKEN is required to proceed. Bootstrap aborted."
+    log_error "BWS_TOKEN is required. Bootstrap aborted."
     exit 1
 fi
 
-log_info "Pre-flight checks passed."
-
 # ─────────────────────────────────────────────────────────────────
-# PHASE 0.6: Deploy User Provisioning (V10.5 Fix)
+# PHASE 4: Deploy User Provisioning (V10.5 Fix)
 # ─────────────────────────────────────────────────────────────────
-log_info "Phase 0.6: Provisioning 'deploy' operator..."
-
-# Fetch deploy password from Bitwarden immediately after pre-flight
+log_info "Phase 4: Provisioning 'deploy' operator..."
 DEPLOY_PASS=$(get_bws_value "deploy-user-password")
 [[ -z "$DEPLOY_PASS" || "$DEPLOY_PASS" == "null" ]] && DEPLOY_PASS=$(get_bws_value "deploy_user_password")
 
@@ -90,83 +113,30 @@ if [[ -n "$DEPLOY_PASS" && "$DEPLOY_PASS" != "null" ]]; then
         useradd -m -s /bin/bash deploy
         echo "deploy:$DEPLOY_PASS" | chpasswd
         usermod -aG docker deploy
-        
-        # Restricted Sudo: Service/Platform commands + Maintenance (V10.5 Final)
         echo "deploy ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart docker, /usr/bin/docker *, /opt/platform/bin/platform *, /usr/sbin/reboot, /usr/sbin/shutdown, /usr/bin/apt, /usr/bin/apt-get, /usr/sbin/ufw, /usr/bin/ln -sf /opt/platform/bin/platform /usr/local/bin/platform, /usr/bin/bash, /usr/bin/mount, /usr/bin/umount, /usr/bin/rm, /usr/bin/true, /usr/bin/crontab *, /usr/bin/ss *, /usr/bin/git, /usr/bin/chown, /usr/bin/chmod, /usr/bin/find, /usr/bin/mkdir" > /etc/sudoers.d/deploy
-        
         mkdir -p /home/deploy/.ssh && chmod 700 /home/deploy/.ssh
         cp /root/.ssh/authorized_keys /home/deploy/.ssh/authorized_keys 2>/dev/null || true
         chown -R deploy:deploy /home/deploy/.ssh
-        log_success "Deploy user created and hardened."
-    else
-        log_info "Deploy user already exists."
+        log_success "Deploy user created."
     fi
-else
-    log_warn "deploy_user_password not found in Bitwarden. User creation skipped (Non-critical for root-only setup)."
-fi
-
-# Helper for Bitwarden Fetching (bws v1.x compatibility)
-# ─────────────────────────────────────────────────────────────────
-get_bws_value() {
-    local key="$1"
-    # Case-insensitive match using jq ascii_upcase comparison
-    bws secret list --access-token "$BWS_TOKEN" -o json 2>/dev/null | \
-        jq -r --arg k "$key" '.[] | select((.key | ascii_upcase) == ($k | ascii_upcase)) | .value' || echo ""
-}
-
-# ─────────────────────────────────────────────────────────────────
-# PHASE 1: Install Base Tools
-# ─────────────────────────────────────────────────────────────────
-
-log_info "Phase 1: Installing base tools..."
-
-export DEBIAN_FRONTEND=noninteractive
-# Add Official PostgreSQL Repository for Version 17 support (V10.3)
-curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg
-echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list
-
-apt-get update -qq
-apt-get upgrade -y -qq
-apt-get install -y -qq curl git jq unzip gpg postgresql-client-17 > /dev/null 2>&1
-
-# ─────────────────────────────────────────────────────────────────
-# PHASE 2: Install Bitwarden Secrets Manager CLI (bws)
-# ─────────────────────────────────────────────────────────────────
-
-INSTALLED_BWS=$(bws --version 2>/dev/null | awk '{print $2}' || echo "none")
-if [[ "$INSTALLED_BWS" != "$BWS_VERSION" ]]; then
-    log_info "Phase 2: Installing Bitwarden Secrets Manager CLI v${BWS_VERSION}..."
-    
-    # BWS 1.0.0 is distributed as a zip
-    curl -fsSL "https://github.com/bitwarden/sdk/releases/download/bws-v${BWS_VERSION}/bws-x86_64-unknown-linux-gnu-${BWS_VERSION}.zip" -o /tmp/bws.zip
-    
-    mkdir -p /tmp/bws_pkg
-    unzip -q /tmp/bws.zip -d /tmp/bws_pkg
-    install -m 755 /tmp/bws_pkg/bws /usr/local/bin/bws
-    rm -rf /tmp/bws.zip /tmp/bws_pkg
-    log_info "bws CLI v${BWS_VERSION} installed and verified."
-else
-    log_info "Phase 2: bws CLI already at target version v${BWS_VERSION}."
 fi
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 3: Install Docker
+# PHASE 5: Install Docker
 # ─────────────────────────────────────────────────────────────────
-
 if ! command -v docker &>/dev/null; then
-    log_info "Phase 3: Installing Docker..."
+    log_info "Phase 5: Installing Docker..."
     curl -fsSL https://get.docker.com | bash > /dev/null 2>&1
     systemctl enable --now docker
     log_info "Docker installed and started."
 else
-    log_info "Phase 3: Docker already installed."
+    log_info "Phase 5: Docker already installed."
 fi
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 3.5: System Localization (Host & Time)
+# PHASE 6: System Localization (Host & Time)
 # ─────────────────────────────────────────────────────────────────
-
-log_info "Phase 3.5: Applying system localization..."
+log_info "Phase 6: Applying system localization..."
 
 log_info "Applying localization: Hostname=$VPS_HOSTNAME, TZ=$VPS_TZ"
 timedatectl set-timezone "$VPS_TZ" || true
@@ -174,76 +144,59 @@ hostnamectl set-hostname "$VPS_HOSTNAME" || true
 echo "127.0.0.1 $VPS_HOSTNAME" >> /etc/hosts
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 4: Install Tailscale
+# PHASE 7: Install Tailscale
 # ─────────────────────────────────────────────────────────────────
 
 if ! command -v tailscale &>/dev/null; then
-    log_info "Phase 4: Installing Tailscale..."
+    log_info "Phase 7: Installing Tailscale..."
     curl -fsSL https://tailscale.com/install.sh | bash > /dev/null 2>&1
     log_info "Tailscale installed."
 else
-    log_info "Phase 4: Tailscale already installed."
+    log_info "Phase 7: Tailscale already installed."
 fi
 
 # Attempt auto-join if Auth Key is in Bitwarden
 TS_KEY=$(get_bws_value "TAILSCALE_AUTH_KEY")
 if [[ -n "$TS_KEY" && "$TS_KEY" != "null" ]]; then
-    log_info "Phase 4.1: Authenticating Tailscale mesh network ($VPS_HOSTNAME)..."
-    tailscale up --authkey="$TS_KEY" --hostname="$VPS_HOSTNAME" --ssh > /dev/null 2>&1 || log_warn "Tailscale auto-join failed. You may need to run it manually."
+    log_info "Phase 7: Authenticating Tailscale mesh network ($VPS_HOSTNAME)..."
+    tailscale up --authkey="$TS_KEY" --hostname="$VPS_HOSTNAME" --ssh > /dev/null 2>&1 || log_warn "Tailscale auto-join failed."
 else
-    log_warn "Phase 4.1: TAILSCALE_AUTH_KEY not found in Bitwarden. Skip auto-join."
+    log_warn "Phase 7: TAILSCALE_AUTH_KEY not found in Bitwarden. Skip auto-join."
     log_warn "You MUST run 'tailscale up --ssh' manually before disconnecting root."
 fi
 
-# ─────────────────────────────────────────────────────────────────
-# PHASE 5: Placeholder (Cloudflared Removed)
-# ─────────────────────────────────────────────────────────────────
-
-log_info "Phase 5: Cloudflare Tunnel removed in favor of Caddy Proxy."
-
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 5.5: Install Rclone and YQ
+# PHASE 8: Install Rclone and YQ
 # ─────────────────────────────────────────────────────────────────
 
 if ! command -v rclone &>/dev/null; then
-    log_info "Phase 5.5: Installing Rclone..."
+    log_info "Phase 8: Installing Rclone..."
     curl -fsSL https://rclone.org/install.sh | bash > /dev/null 2>&1
     log_info "Rclone installed."
 fi
 
 if ! command -v yq &>/dev/null; then
-    log_info "Phase 5.5: Installing YQ (Official Binary)..."
+    log_info "Phase 8: Installing YQ (Official Binary)..."
     wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq > /dev/null 2>&1
     chmod +x /usr/local/bin/yq
     log_info "YQ installed."
 fi
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 6: Fetch Platform Secrets and Clone Platform-Core
+# PHASE 9: Fetch Platform Secrets and Clone Platform-Core
 # ─────────────────────────────────────────────────────────────────
-
-log_info "Phase 6: Fetching remaining secrets from Bitwarden..."
+log_info "Phase 9: Fetching secrets and cloning core..."
 
 # Fetch GitHub PAT for cloning private repo
 GITHUB_TOKEN=$(get_bws_value "GITHUB_PAT")
 
-log_info "Secrets and connectivity ready."
-
-# ─────────────────────────────────────────────────────────────────
-# PHASE 6.2: Secret Validation (Fail Fast)
-# ─────────────────────────────────────────────────────────────────
-
-log_info "Phase 6.2: Validating critical secrets..."
-
 if [[ -z "$GITHUB_TOKEN" || "$GITHUB_TOKEN" == "null" ]]; then
     log_error "Critical Secret Missing: GITHUB_PAT (GitHub Personal Access Token)"
-    log_error "Authentication is required to clone private repository platform-core."
-    log_warn "Please ensure GITHUB_PAT is defined in your Bitwarden Secrets Manager project."
     exit 1
 fi
 
-log_info "Critical secrets validated."
+log_info "Phase 9: Cloning platform-core..."
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -265,10 +218,9 @@ unset GITHUB_TOKEN
 log_info "Platform-core cloned to $INSTALL_DIR"
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 8: Trigger Platform Bootstrap
+# PHASE 10: Trigger Platform Bootstrap
 # ─────────────────────────────────────────────────────────────────
-
-log_info "Phase 8: Triggering platform-bootstrap.sh..."
+log_info "Phase 10: Triggering platform-bootstrap.sh..."
 
 export BWS_TOKEN="$BWS_TOKEN"
 bash "$INSTALL_DIR/bootstrap/platform-bootstrap.sh"
