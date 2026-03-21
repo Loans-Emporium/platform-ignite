@@ -132,12 +132,15 @@ fi
 # ─────────────────────────────────────────────────────────────────
 INSTALLED_BWS=$(bws --version 2>/dev/null | awk '{print $2}' || echo "none")
 if [[ "$INSTALLED_BWS" != "$BWS_VERSION" ]]; then
-    log_info "Phase 4: Installing Bitwarden SDK CLI v${BWS_VERSION}..."
+    log_info "Phase 4: Installing Bitwarden SDK CLI v${BWS_VERSION} (Audit N-06)..."
+    # V11.0.2: Added SHA-256 checksum verification for BWS binary (Audit N-06)
+    BWS_SHA="9077fb7b336a62abc8194728fea8753afad8b0baa3a18723fc05fc02fdb53568"
     curl -fsSL "https://github.com/bitwarden/sdk/releases/download/bws-v${BWS_VERSION}/bws-x86_64-unknown-linux-gnu-${BWS_VERSION}.zip" -o /tmp/bws.zip
+    verify_checksum "/tmp/bws.zip" "$BWS_SHA"
     mkdir -p /tmp/bws_pkg && unzip -q /tmp/bws.zip -d /tmp/bws_pkg
     install -m 755 /tmp/bws_pkg/bws /usr/local/bin/bws
     rm -rf /tmp/bws.zip /tmp/bws_pkg
-    log_success "bws CLI installed."
+    log_success "bws CLI ${BWS_VERSION} installed and verified."
 fi
 
 # Helper for Bitwarden Fetching (bws v1.x compatibility)
@@ -177,6 +180,17 @@ rm -rf "$INSTALL_DIR"
 git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_ORG}/${GITHUB_REPO}.git" "$INSTALL_DIR" > /dev/null 2>&1
 unset GITHUB_TOKEN
 log_success "Platform source cloned to $INSTALL_DIR."
+
+# V11.0.2: Repository Version Sync Enforcement (Audit N-13)
+CORE_STACK="$INSTALL_DIR/CANONICAL_STACK"
+if [[ -f "$CORE_STACK" ]]; then
+    CORE_BWS=$(grep "BWS_VERSION" "$CORE_STACK" | cut -d'"' -f2 || true)
+    if [[ -n "$CORE_BWS" && "$CORE_BWS" != "$BWS_VERSION" ]]; then
+        log_warn "VERSION SYNC WARNING: ignite ($BWS_VERSION) != platform-core ($CORE_BWS)"
+        log_warn "Please update ignite/bootstrap.sh to match CANONICAL_STACK (Audit N-13)."
+        # Non-fatal to allow manual resolution, but loud.
+    fi
+fi
 
 # ─────────────────────────────────────────────────────────────────
 # PHASE 7: Tailscale Join
