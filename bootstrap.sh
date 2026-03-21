@@ -94,7 +94,7 @@ log_info "Phase 1: Installing base tools..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get upgrade -y -qq
-apt-get install -y -qq curl git jq unzip gpg > /dev/null 2>&1
+apt-get install -y -qq curl git jq unzip gpg postgresql-client > /dev/null 2>&1
 
 # ─────────────────────────────────────────────────────────────────
 # PHASE 2: Install Bitwarden Secrets Manager CLI (bws)
