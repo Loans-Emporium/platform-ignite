@@ -23,7 +23,7 @@ VPS_HOSTNAME="${VPS_HOSTNAME:-loans-platform-vps-1}"
 VPS_TZ="${VPS_TZ:-Asia/Kolkata}"
 
 # F-01/F-21: Read VERSION dynamically if available
-VERSION="10.5" # V10.5 Release
+VERSION="11.0" # V11.0 Root Resilience
 if [[ -f "$INSTALL_DIR/VERSION" ]]; then
     VERSION=$(cat "$INSTALL_DIR/VERSION")
 fi
@@ -60,9 +60,18 @@ fi
 # ─────────────────────────────────────────────────────────────────
 # PHASE 1: Install Base Tools
 # ─────────────────────────────────────────────────────────────────
-log_info "Phase 1: Installing base tools (Git, curl, jq, pg_dump)..."
+log_info "Phase 1: Installing base tools (Git, curl, jq, pg_dump 17)..."
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq && apt-get install -y -qq curl git jq unzip gpg wget postgresql-client openssl > /dev/null 2>&1
+
+# V10.6.9: Install Postgres 17 Client for Neon/Cloud compatibility
+if ! command -v pg_dump &>/dev/null || [[ $(pg_dump --version | grep -oE '[0-9]+' | head -1) -lt 17 ]]; then
+    log_info "Adding official PostgreSQL repository for version 17 client..."
+    install -d /usr/share/postgresql-common/pgdg
+    curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list
+fi
+
+apt-get update -qq && apt-get install -y -qq curl git jq unzip gpg wget postgresql-client-17 openssl > /dev/null 2>&1
 
 # ─────────────────────────────────────────────────────────────────
 # PHASE 2: Install Docker Engine
@@ -125,25 +134,18 @@ if [[ -z "$BWS_TOKEN" ]]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 6: Operator Provisioning (Deploy User)
+# PHASE 6: Platform Inception (Source Clone)
 # ─────────────────────────────────────────────────────────────────
-log_info "Phase 6: Provisioning 'deploy' operator..."
-DEPLOY_PASS=$(get_bws_value "deploy-user-password")
-[[ -z "$DEPLOY_PASS" || "$DEPLOY_PASS" == "null" ]] && DEPLOY_PASS=$(get_bws_value "deploy_user_password")
-
-if [[ -n "$DEPLOY_PASS" && "$DEPLOY_PASS" != "null" ]]; then
-    if ! id "deploy" &>/dev/null; then
-        log_info "Creating 'deploy' user with Docker access..."
-        useradd -m -s /bin/bash deploy
-        echo "deploy:$DEPLOY_PASS" | chpasswd
-        usermod -aG docker deploy
-        echo "deploy ALL=(ALL) NOPASSWD: /usr/bin/systemctl *, /usr/bin/docker *, /opt/platform/bin/platform *, /usr/sbin/reboot, /usr/sbin/shutdown, /usr/bin/apt, /usr/bin/apt-get, /usr/sbin/ufw, /usr/bin/ln -sf *, /usr/bin/bash, /usr/bin/mount, /usr/bin/umount, /usr/bin/rm *, /usr/bin/true, /usr/bin/crontab *, /usr/bin/ss *, /usr/bin/git *, /usr/bin/chown *, /usr/bin/chmod *, /usr/bin/find *, /usr/bin/mkdir *, /usr/bin/tee *" > /etc/sudoers.d/deploy
-        mkdir -p /home/deploy/.ssh && chmod 700 /home/deploy/.ssh
-        cp /root/.ssh/authorized_keys /home/deploy/.ssh/authorized_keys 2>/dev/null || true
-        chown -R deploy:deploy /home/deploy/.ssh
-        log_success "Deploy user created and secured."
-    fi
+log_info "Phase 6: Cloning platform-core repository..."
+GITHUB_TOKEN=$(get_bws_value "GITHUB_PAT")
+if [[ -z "$GITHUB_TOKEN" || "$GITHUB_TOKEN" == "null" ]]; then
+    log_error "Critical Secret Missing: GITHUB_PAT. Clone failed."
+    exit 1
 fi
+rm -rf "$INSTALL_DIR"
+git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_ORG}/${GITHUB_REPO}.git" "$INSTALL_DIR" > /dev/null 2>&1
+unset GITHUB_TOKEN
+log_success "Platform source cloned to $INSTALL_DIR."
 
 # ─────────────────────────────────────────────────────────────────
 # PHASE 7: Network & Localization
@@ -167,23 +169,9 @@ echo "127.0.0.1 $VPS_HOSTNAME" >> /etc/hosts
 log_success "System localization applied."
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 8: Platform Inception (Source Clone)
+# PHASE 7: Platform Orchestration (Sub-Bootstrap)
 # ─────────────────────────────────────────────────────────────────
-log_info "Phase 8: Cloning platform-core repository..."
-GITHUB_TOKEN=$(get_bws_value "GITHUB_PAT")
-if [[ -z "$GITHUB_TOKEN" || "$GITHUB_TOKEN" == "null" ]]; then
-    log_error "Critical Secret Missing: GITHUB_PAT. Clone failed."
-    exit 1
-fi
-rm -rf "$INSTALL_DIR"
-git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_ORG}/${GITHUB_REPO}.git" "$INSTALL_DIR" > /dev/null 2>&1
-unset GITHUB_TOKEN
-log_success "Platform source cloned to $INSTALL_DIR."
-
-# ─────────────────────────────────────────────────────────────────
-# PHASE 9: Platform Orchestration (Sub-Bootstrap)
-# ─────────────────────────────────────────────────────────────────
-log_info "Phase 9: Triggering interior platform-bootstrap..."
+log_info "Phase 7: Triggering interior platform-bootstrap..."
 export BWS_TOKEN="$BWS_TOKEN"
 bash "$INSTALL_DIR/bootstrap/platform-bootstrap.sh"
 ln -sf "$INSTALL_DIR/bin/platform" /usr/local/bin/platform
@@ -203,8 +191,7 @@ export BWS_TOKEN="$(cat /opt/platform/config/.bws_token 2>/dev/null || true)"
 PROFILE
 
 # 2. Permissions & Owner
-chown -R deploy:deploy /opt/platform /etc/loans-platform
-chown root:deploy /opt/platform/config/.bws_token
+chown -R root:root /opt/platform /etc/loans-platform
 git config --system --add safe.directory /opt/platform
 
 # 3. Log Hygiene
@@ -213,7 +200,7 @@ cat <<EOF > /etc/logrotate.d/platform
 EOF
 
 # 4. Perimeter Hardening
-sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+sed -i 's/^#*PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
 systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null || true
 
 TS_IP=$(tailscale ip -4 2>/dev/null | head -n 1 || echo "not-reached")
@@ -229,9 +216,9 @@ echo "✅ Platform:    $INSTALL_DIR"
 echo "📡 Tailscale IP: $TS_IP"
 echo ""
 echo "🚀 Next Steps:"
-echo "   tailscale ssh deploy@$VPS_HOSTNAME"
+echo "   tailscale ssh root@$VPS_HOSTNAME"
 echo ""
 echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${RED}  ⚠️  EXIT ROOT NOW - ROOT SSH IS DISABLED${NC}"
+echo -e "${GREEN}  🛡️ ROOT ACCESS ENABLED VIA TAILSCALE ONLY${NC}"
 echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
