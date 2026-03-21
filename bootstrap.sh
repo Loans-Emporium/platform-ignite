@@ -60,9 +60,9 @@ fi
 # ─────────────────────────────────────────────────────────────────
 # PHASE 1: Install Base Tools
 # ─────────────────────────────────────────────────────────────────
-log_info "Phase 1: Installing base tools (Git, curl, jq)..."
+log_info "Phase 1: Installing base tools (Git, curl, jq, pg_dump)..."
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq && apt-get install -y -qq curl git jq unzip gpg wget > /dev/null 2>&1
+apt-get update -qq && apt-get install -y -qq curl git jq unzip gpg wget postgresql-client openssl > /dev/null 2>&1
 
 # ─────────────────────────────────────────────────────────────────
 # PHASE 2: Install Docker Engine
