@@ -13,25 +13,33 @@
 
 set -euo pipefail
 
-# ── Logging & UI Initialization (Audit N-12 early-access) ────────────────────
+# ── Colors & UI (Must be defined before any prompt or trap call) ────────────
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
-log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
-log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+log_info()    { echo -e "${GREEN}[INFO]${NC} $1"; }
+log_warn()    { echo -e "${YELLOW}[WARN]${NC} $1"; }
+log_error()   { echo -e "${RED}[ERROR]${NC} $1"; }
 log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 
+# ── Early Error Trap ────────────────────────────────────────────────────────
 trap 'log_error "Bootstrap failed at line $LINENO. Manual remediation required."; exit 1' ERR
 
-# Configuration
+# ── Configuration ───────────────────────────────────────────────────────────
 GITHUB_ORG="${GITHUB_ORG:-Loans-Emporium}"
 GITHUB_REPO="platform-core"
 INSTALL_DIR="/opt/platform"
 
-# Localization & Identity (Audit N-12 Hardening)
+# Dependency Pinning (Audit N-10/N-13)
+BWS_VERSION="1.0.0"
+DOCKER_CE_VERSION="26.0.0"
+YQ_VERSION="4.44.3"
+RCLONE_VERSION="1.66.0"
+TAILSCALE_VERSION="1.62.1"
+
+# ── Localization & Identity (Audit N-12 Hardening) ──────────────────────────
 if [[ -z "${VPS_HOSTNAME:-}" ]]; then
     echo -e "${YELLOW}[PROMPT]${NC} VPS_HOSTNAME is not set in environment."
     read -p "Enter a unique Hostname for this VPS (e.g. srv-prod-01): " VPS_HOSTNAME
