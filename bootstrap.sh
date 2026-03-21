@@ -12,6 +12,7 @@
 #   4. Clones platform-core and triggers platform-bootstrap.sh
 
 set -euo pipefail
+trap 'log_error "Bootstrap failed at line $LINENO. Manual remediation required."; exit 1' ERR
 
 # Configuration
 GITHUB_ORG="${GITHUB_ORG:-Loans-Emporium}"

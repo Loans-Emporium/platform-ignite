@@ -1,5 +1,12 @@
-# Security overrides
+# Security overrides (F-13 Hardening)
 .bws_token
 *.tmp
 *.log
 .DS_Store
+*.pem
+*.key
+*.p12
+*_rsa
+*_ed25519
+credentials.json
+.env

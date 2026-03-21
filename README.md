@@ -1,13 +1,13 @@
 # ignite
-## One-command VPS Hardening for Loans Emporium PaaS
+## One-command VPS Hardening for Loans Emporium Platform
 
-**Version**: V8.2  
+**Version**: V11.0 "Root Resilience"  
 **Target Architecture**: Internal PaaS (Platform-as-a-Service)  
-**Last Updated**: March 16, 2026
+**Last Updated**: March 22, 2026
 
 ---
 
-## 🚀 Quick Start (Machine Root)
+## 🚀 Quick Start (Root-Only)
 
 ```bash
 # Hardens machine, installs runtimes, and clones PaaS control plane.
@@ -17,65 +17,44 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Loans-Emporium/platform-igni
 
 ## 🛠️ What This Does
 
-The bootstrap script performs a 5-minute automated setup:
+The bootstrap script performs a 5-minute automated setup for pure root-only operation:
 
-1. **Runtimes**: Installs Docker Engine, Git, and **`yq`** (official binary for manifest parsing).
-2. **Hardening**: Configures UFW (Ports 80/443), Tailscale (WireGuard Mesh), and Timezone/Hostname.
-3. **Backup Engine**: Installs **`rclone`** for R2 synchronization.
-4. **Ingress Proxy**: Installs **Caddy** via Docker for automated TLS.
-4. **Secret Management**: Installs Bitwarden Secrets Manager CLI (`bws`).
-5. **Localization**: Sets hostname and timezone from Bitwarden secrets (`vps-hostname`, `vps-timezone`).
-6. **User Provisioning**: Creates the `deploy` user with restricted sudo access.
-7. **Kickstart**: Clones `platform-core` and hand-off to the internal `platform-bootstrap.sh`.
+1. **OS Hardening**: Performs a full `apt-get upgrade` and installs base tools (`git`, `curl`, `jq`, `openssl`).
+2. **Binary Integrity**: Installs **Docker**, **`yq`**, and **`rclone`** with SHA-256 checksum verification (F-02).
+3. **Secret Management**: Installs Bitwarden Secrets Manager CLI (`bws` v1.0.0).
+4. **Network Hardening**: Configures **UFW** (Blocking public SSH, allowing 80/443 and Tailscale mesh).
+5. **Vesting**: Clones `platform-core` and hand-off to the internal `platform-bootstrap.sh`.
+6. **Persistence**: Hardens secret storage to `0600` and un-exports master tokens from the environment (F-01/F-04).
 
-## 🔐 Security Design
+## 🔐 Security Design (V11.0)
 
-Follows security-by-design principles:
-- **Zero Secrets in Code**: No secrets reside in this repository.
-- **Forced Token Prompt**: Masked runtime prompt for `BWS_TOKEN` prevents process/history exposure.
-- **Hardened Ingress**: VPS opens only 80 (Redirects/Certs) and 443 (HTTPS). No other ports exposed.
-- **SSH via Mesh**: Access is restricted to the Tailscale mesh network only.
+Follows "Root Resilience" and "Zero Secrets" principles:
+- **Binary Checksums**: Every 3rd-party binary is verified against a hardcoded SHA-256 hash.
+- **Narrow Secret Scoping**: `BWS_TOKEN` is passed only to specific setup processes and never exported globally.
+- **Root-Only**: Eliminates the `deploy` user abstraction, reducing privilege escalation vectors.
+- **Mandatory UFW**: Default incoming policy is `DENY`, including public port 22 (SSH).
+- **Tailscale Only**: Admin access is strictly routed through the authenticated Tailscale mesh.
 
-## 🛡️ Reporting a Vulnerability
+## 🛡️ Security Maintenance
 
-If you discover a security vulnerability, please do NOT open a public issue. Email: **security@loansemporium.com**.
+To maintain the high security bar of V11.0:
 
-## ✅ Verification & Troubleshooting
-
-After bootstrap completes:
-
-```bash
-# Verify Platform status
-platform status
-
-# Check Docker containers
-docker ps
-
-# Check networking
-tailscale status
-docker exec platform-caddy caddy fmt --stdout
-```
-
-### Common Troubleshooting
-- **Failed Bootstrap**: Check system logs with `journalctl -u docker` or `/var/log/syslog`.
-- **Secret Error**: Ensure your `BWS_TOKEN` is valid and has access to the `loans_emporium_platform` project.
-- **Tailscale Fail**: Run `tailscale status` to verify your node is authenticated to the mesh.
+1. **Linting**: All changes must pass `shellcheck` before being merged:
+   ```bash
+   shellcheck bootstrap.sh
+   ```
+2. **Audit Trail**: Every provisioned server logs the core platform SHA in `/opt/platform/state/bootstrap-sha`.
+3. **Review Cadence**: A manual security audit (F-01 through F-13) is performed before every major version release.
 
 ## 📋 Prerequisites
 
 | Requirement | Purpose |
 |-------------|---------|
 | Ubuntu 22.04+ VPS | Target production server (2GB RAM min) |
-| Bitwarden Token | Prodvides access to infra & app secrets |
+| Bitwarden Token | Provides access to infra & app secrets |
 | GitHub PAT | Required to clone the private `platform-core` |
-
-## 🚀 Next Steps
-
-1. **Verify**: Run `platform doctor` to check system health.
-2. **Deploy**: Run `platform app add <repo-url>` to host your first app.
-3. **Audit**: Review the audit report at `/opt/platform/docs/05-compliance/01-audit.md`.
 
 ---
 
 **Maintained by**: Loans Emporium Platform Team  
-**Status**: Production Ready ✅
+**Status**: Production Ready ✅ (Post-Audit Hardened)
