@@ -60,26 +60,49 @@ fi
 # ─────────────────────────────────────────────────────────────────
 # PHASE 1: Install Base Tools
 # ─────────────────────────────────────────────────────────────────
-log_info "Phase 1: Installing base tools..."
+log_info "Phase 1: Installing base tools (Git, curl, jq)..."
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq && apt-get install -y -qq curl git jq unzip gpg > /dev/null 2>&1
+apt-get update -qq && apt-get install -y -qq curl git jq unzip gpg wget > /dev/null 2>&1
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 2: Install Bitwarden Secrets Manager CLI (bws)
+# PHASE 2: Install Docker Engine
+# ─────────────────────────────────────────────────────────────────
+if ! command -v docker &>/dev/null; then
+    log_info "Phase 2: Installing Docker Engine..."
+    curl -fsSL https://get.docker.com | bash > /dev/null 2>&1
+    systemctl enable --now docker
+    log_success "Docker installed and started."
+else
+    log_info "Phase 2: Docker already installed."
+fi
+
+# ─────────────────────────────────────────────────────────────────
+# PHASE 3: Install Utility Binaries (Rclone, YQ)
+# ─────────────────────────────────────────────────────────────────
+log_info "Phase 3: Installing Rclone & YQ..."
+if ! command -v rclone &>/dev/null; then
+    curl -fsSL https://rclone.org/install.sh | bash > /dev/null 2>&1
+fi
+if ! command -v yq &>/dev/null; then
+    wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq > /dev/null 2>&1
+    chmod +x /usr/local/bin/yq
+fi
+log_success "Utilities installed."
+
+# ─────────────────────────────────────────────────────────────────
+# PHASE 4: Install Bitwarden Secrets Manager (bws)
 # ─────────────────────────────────────────────────────────────────
 INSTALLED_BWS=$(bws --version 2>/dev/null | awk '{print $2}' || echo "none")
 if [[ "$INSTALLED_BWS" != "$BWS_VERSION" ]]; then
-    log_info "Phase 2: Installing Bitwarden Secrets Manager CLI v${BWS_VERSION}..."
+    log_info "Phase 4: Installing Bitwarden SDK CLI v${BWS_VERSION}..."
     curl -fsSL "https://github.com/bitwarden/sdk/releases/download/bws-v${BWS_VERSION}/bws-x86_64-unknown-linux-gnu-${BWS_VERSION}.zip" -o /tmp/bws.zip
     mkdir -p /tmp/bws_pkg && unzip -q /tmp/bws.zip -d /tmp/bws_pkg
     install -m 755 /tmp/bws_pkg/bws /usr/local/bin/bws
     rm -rf /tmp/bws.zip /tmp/bws_pkg
-    log_info "bws CLI v${BWS_VERSION} installed."
+    log_success "bws CLI installed."
 fi
 
-# ─────────────────────────────────────────────────────────────────
 # Helper for Bitwarden Fetching (bws v1.x compatibility)
-# ─────────────────────────────────────────────────────────────────
 get_bws_value() {
     local key="$1"
     bws secret list --access-token "$BWS_TOKEN" -o json 2>/dev/null | \
@@ -87,9 +110,9 @@ get_bws_value() {
 }
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 3: Pre-Flight Prompt
+# PHASE 5: Security Challenge & Authentication
 # ─────────────────────────────────────────────────────────────────
-log_info "Phase 3: Security checks & authentication..."
+log_info "Phase 5: Security checks & BWS authentication..."
 unset BWS_TOKEN
 echo -n -e "${YELLOW}[PROMPT]${NC} Please enter your Bitwarden Secrets Manager Access Token: "
 read -s BWS_TOKEN < /dev/tty
@@ -102,15 +125,15 @@ if [[ -z "$BWS_TOKEN" ]]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 4: Deploy User Provisioning (V10.5 Fix)
+# PHASE 6: Operator Provisioning (Deploy User)
 # ─────────────────────────────────────────────────────────────────
-log_info "Phase 4: Provisioning 'deploy' operator..."
+log_info "Phase 6: Provisioning 'deploy' operator..."
 DEPLOY_PASS=$(get_bws_value "deploy-user-password")
 [[ -z "$DEPLOY_PASS" || "$DEPLOY_PASS" == "null" ]] && DEPLOY_PASS=$(get_bws_value "deploy_user_password")
 
 if [[ -n "$DEPLOY_PASS" && "$DEPLOY_PASS" != "null" ]]; then
     if ! id "deploy" &>/dev/null; then
-        log_info "Creating 'deploy' user with restricted sudo..."
+        log_info "Creating 'deploy' user with Docker access..."
         useradd -m -s /bin/bash deploy
         echo "deploy:$DEPLOY_PASS" | chpasswd
         usermod -aG docker deploy
@@ -118,163 +141,82 @@ if [[ -n "$DEPLOY_PASS" && "$DEPLOY_PASS" != "null" ]]; then
         mkdir -p /home/deploy/.ssh && chmod 700 /home/deploy/.ssh
         cp /root/.ssh/authorized_keys /home/deploy/.ssh/authorized_keys 2>/dev/null || true
         chown -R deploy:deploy /home/deploy/.ssh
-        log_success "Deploy user created."
+        log_success "Deploy user created and secured."
     fi
 fi
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 5: Install Docker
+# PHASE 7: Network & Localization
 # ─────────────────────────────────────────────────────────────────
-if ! command -v docker &>/dev/null; then
-    log_info "Phase 5: Installing Docker..."
-    curl -fsSL https://get.docker.com | bash > /dev/null 2>&1
-    systemctl enable --now docker
-    log_info "Docker installed and started."
-else
-    log_info "Phase 5: Docker already installed."
+log_info "Phase 7: Configuring network (Tailscale) & Localization..."
+
+# Tailscale setup
+if ! command -v tailscale &>/dev/null; then
+    curl -fsSL https://tailscale.com/install.sh | bash > /dev/null 2>&1
+fi
+TS_KEY=$(get_bws_value "TAILSCALE_AUTH_KEY")
+if [[ -n "$TS_KEY" && "$TS_KEY" != "null" ]]; then
+    tailscale up --authkey="$TS_KEY" --hostname="$VPS_HOSTNAME" --ssh > /dev/null 2>&1 || log_warn "Tailscale join failed."
+    log_success "Tailscale mesh joined."
 fi
 
-# ─────────────────────────────────────────────────────────────────
-# PHASE 6: System Localization (Host & Time)
-# ─────────────────────────────────────────────────────────────────
-log_info "Phase 6: Applying system localization..."
-
-log_info "Applying localization: Hostname=$VPS_HOSTNAME, TZ=$VPS_TZ"
+# Hostname & TZ
 timedatectl set-timezone "$VPS_TZ" || true
 hostnamectl set-hostname "$VPS_HOSTNAME" || true
 echo "127.0.0.1 $VPS_HOSTNAME" >> /etc/hosts
+log_success "System localization applied."
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 7: Install Tailscale
+# PHASE 8: Platform Inception (Source Clone)
 # ─────────────────────────────────────────────────────────────────
-
-if ! command -v tailscale &>/dev/null; then
-    log_info "Phase 7: Installing Tailscale..."
-    curl -fsSL https://tailscale.com/install.sh | bash > /dev/null 2>&1
-    log_info "Tailscale installed."
-else
-    log_info "Phase 7: Tailscale already installed."
-fi
-
-# Attempt auto-join if Auth Key is in Bitwarden
-TS_KEY=$(get_bws_value "TAILSCALE_AUTH_KEY")
-if [[ -n "$TS_KEY" && "$TS_KEY" != "null" ]]; then
-    log_info "Phase 7: Authenticating Tailscale mesh network ($VPS_HOSTNAME)..."
-    tailscale up --authkey="$TS_KEY" --hostname="$VPS_HOSTNAME" --ssh > /dev/null 2>&1 || log_warn "Tailscale auto-join failed."
-else
-    log_warn "Phase 7: TAILSCALE_AUTH_KEY not found in Bitwarden. Skip auto-join."
-    log_warn "You MUST run 'tailscale up --ssh' manually before disconnecting root."
-fi
-
-
-# ─────────────────────────────────────────────────────────────────
-# PHASE 8: Install Rclone and YQ
-# ─────────────────────────────────────────────────────────────────
-
-if ! command -v rclone &>/dev/null; then
-    log_info "Phase 8: Installing Rclone..."
-    curl -fsSL https://rclone.org/install.sh | bash > /dev/null 2>&1
-    log_info "Rclone installed."
-fi
-
-if ! command -v yq &>/dev/null; then
-    log_info "Phase 8: Installing YQ (Official Binary)..."
-    wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq > /dev/null 2>&1
-    chmod +x /usr/local/bin/yq
-    log_info "YQ installed."
-fi
-
-# ─────────────────────────────────────────────────────────────────
-# PHASE 9: Fetch Platform Secrets and Clone Platform-Core
-# ─────────────────────────────────────────────────────────────────
-log_info "Phase 9: Fetching secrets and cloning core..."
-
-# Fetch GitHub PAT for cloning private repo
+log_info "Phase 8: Cloning platform-core repository..."
 GITHUB_TOKEN=$(get_bws_value "GITHUB_PAT")
-
 if [[ -z "$GITHUB_TOKEN" || "$GITHUB_TOKEN" == "null" ]]; then
-    log_error "Critical Secret Missing: GITHUB_PAT (GitHub Personal Access Token)"
+    log_error "Critical Secret Missing: GITHUB_PAT. Clone failed."
     exit 1
 fi
-
-log_info "Phase 9: Cloning platform-core..."
-
-
-# ─────────────────────────────────────────────────────────────────
-# PHASE 7: Clone Platform-Core
-# ─────────────────────────────────────────────────────────────────
-
-log_info "Phase 7: Cloning platform-core..."
-
 rm -rf "$INSTALL_DIR"
-if [[ -n "$GITHUB_TOKEN" ]]; then
-    log_info "Attempting authenticated clone..."
-    git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_ORG}/${GITHUB_REPO}.git" "$INSTALL_DIR"
-else
-    log_warn "No token found, attempting public clone..."
-    git clone "https://github.com/${GITHUB_ORG}/${GITHUB_REPO}.git" "$INSTALL_DIR"
-fi
+git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_ORG}/${GITHUB_REPO}.git" "$INSTALL_DIR" > /dev/null 2>&1
 unset GITHUB_TOKEN
-
-log_info "Platform-core cloned to $INSTALL_DIR"
+log_success "Platform source cloned to $INSTALL_DIR."
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 10: Trigger Platform Bootstrap
+# PHASE 9: Platform Orchestration (Sub-Bootstrap)
 # ─────────────────────────────────────────────────────────────────
-log_info "Phase 10: Triggering platform-bootstrap.sh..."
-
+log_info "Phase 9: Triggering interior platform-bootstrap..."
 export BWS_TOKEN="$BWS_TOKEN"
 bash "$INSTALL_DIR/bootstrap/platform-bootstrap.sh"
-
-# Global CLI Link
-log_info "Linking platform CLI to /usr/local/bin..."
 ln -sf "$INSTALL_DIR/bin/platform" /usr/local/bin/platform
 chmod +x "$INSTALL_DIR/bin/platform"
+log_success "Platform CLI linked and initialized."
 
-# 8.5: Security & Hygiene Hardening (Move to Phase 0.6)
+# ─────────────────────────────────────────────────────────────────
+# PHASE 10: Security Hardening & Handover
+# ─────────────────────────────────────────────────────────────────
+log_info "Phase 10: Finalizing security hardening..."
 
-# 2. Log Hygiene (Logrotate)
-log_info "Configuring log rotation..."
-cat <<EOF > /etc/logrotate.d/platform
-/var/log/platform-*.log {
-    weekly
-    rotate 4
-    compress
-    missingok
-    notifempty
-    create 0640 root root
-}
-EOF
-
-# 3. Disable Root SSH Login
-log_info "Disabling root SSH login (PermitRootLogin no)..."
-sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
-systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null || true
-
-# 4. Phase 8.6: Persist BWS_TOKEN for operators and cron (N-01)
-log_info "Phase 8.6: Persisting BWS_TOKEN for operators and cron..."
+# 1. BWS Persistence
+echo "$BWS_TOKEN" > /opt/platform/config/.bws_token
+chmod 640 /opt/platform/config/.bws_token
 cat > /etc/profile.d/platform.sh <<'PROFILE'
-# Loans Emporium Platform — sourced at login
 export BWS_TOKEN="$(cat /opt/platform/config/.bws_token 2>/dev/null || true)"
 PROFILE
 
-# Write token to a root-only file
-echo "$BWS_TOKEN" > /opt/platform/config/.bws_token
-chmod 640 /opt/platform/config/.bws_token
-
-# 5. Phase 8.7: Ownership and Git Security (Hardening)
-log_info "Phase 8.7: Setting up operator permissions and Git security..."
+# 2. Permissions & Owner
 chown -R deploy:deploy /opt/platform /etc/loans-platform
-chmod +x /opt/platform/bin/platform
+chown root:deploy /opt/platform/config/.bws_token
 git config --system --add safe.directory /opt/platform
-chown root:deploy /opt/platform/config/.bws_token /opt/platform/config/rclone.conf
-chmod 640 /opt/platform/config/.bws_token /opt/platform/config/rclone.conf
 
-# ─────────────────────────────────────────────────────────────────
-# PHASE 9: Complete
-# ─────────────────────────────────────────────────────────────────
+# 3. Log Hygiene
+cat <<EOF > /etc/logrotate.d/platform
+/var/log/platform-*.log { weekly ; rotate 4 ; compress ; missingok ; notifempty ; create 0640 root root }
+EOF
 
-TS_IP=$(tailscale ip -4 2>/dev/null | head -n 1 || echo "not-configured")
+# 4. Perimeter Hardening
+sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null || true
+
+TS_IP=$(tailscale ip -4 2>/dev/null | head -n 1 || echo "not-reached")
 
 echo ""
 echo "╔════════════════════════════════════════════════════════════╗"
@@ -283,24 +225,13 @@ echo "╚═══════════════════════�
 echo ""
 echo "✅ Docker:      $(docker --version | cut -d' ' -f3 | tr -d ',')"
 echo "✅ Tailscale:   $(tailscale version | head -1)"
-echo "✅ bws CLI:     $(bws --version)"
 echo "✅ Platform:    $INSTALL_DIR"
-echo ""
 echo "📡 Tailscale IP: $TS_IP"
 echo ""
 echo "🚀 Next Steps:"
-echo "   1. Verify: platform status"
-echo "   2. Check logs: platform logs"
-echo "   3. Read docs: $INSTALL_DIR/docs/"
+echo "   tailscale ssh deploy@$VPS_HOSTNAME"
 echo ""
 echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${RED}  ⚠️  SECURITY HARDENING: EXIT ROOT NOW${NC}"
-echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "  Root SSH login has been \033[1;31mdisabled\033[0m for security."
-echo -e "  Please \033[1;32mexit this session\033[0m and login using the \033[1;36mdeploy\033[0m user"
-echo -e "  via \033[1;35mTailscale\033[0m for all future management:"
-echo ""
-echo -e "  \033[1;37mtailscale ssh deploy@$VPS_HOSTNAME\033[0m"
-echo ""
+echo -e "${RED}  ⚠️  EXIT ROOT NOW - ROOT SSH IS DISABLED${NC}"
 echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
