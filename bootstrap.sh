@@ -31,6 +31,7 @@ fi
 
 # ── Canonical CLI Versions ──────────────────────────────────────────────────
 BWS_VERSION="1.0.0"
+DOCKER_CE_VERSION="26.0.0"
 
 # Colors for output
 RED='\033[0;31m'
@@ -95,8 +96,14 @@ if ! command -v docker &>/dev/null; then
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
         tee /etc/apt/sources.list.d/docker.list > /dev/null
     apt-get update -qq
-    # V11.0.1: Pinning Docker version for supply chain stability
-    apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin > /dev/null 2>&1
+    # V11.0.3: Pinning Docker version for supply chain stability (Audit N-10)
+    # We use a wildcard (*) for the OS-specific suffix (e.g. ~ubuntu.22.04~jammy)
+    apt-get install -y -qq \
+        docker-ce=5:${DOCKER_CE_VERSION}* \
+        docker-ce-cli=5:${DOCKER_CE_VERSION}* \
+        containerd.io \
+        docker-buildx-plugin \
+        docker-compose-plugin > /dev/null 2>&1
     systemctl enable --now docker
     log_success "Docker (stable) installed and started."
 else
