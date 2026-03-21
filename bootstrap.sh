@@ -134,7 +134,7 @@ log_info "Phase 3: Installing Rclone & YQ (Checksum Verified)..."
 if ! command -v rclone &>/dev/null; then
     # V11.0.1: Pinned Rclone binary + SHA-256 (Audit N-06/F-02)
     RCLONE_VER="v1.66.0"
-    RCLONE_SHA="94a6132cc74e17ad30d5f8102d1b702ec8c9a3d607e1e695f2d05777402613d9"
+    RCLONE_SHA="b4d304b1dc76001b1d3bb820ae8d1ae60a072afbd3296be904a3ee00b3d4fab9"
     wget -q "https://github.com/rclone/rclone/releases/download/${RCLONE_VER}/rclone-${RCLONE_VER}-linux-amd64.zip" -O /tmp/rclone.zip
     verify_checksum "/tmp/rclone.zip" "$RCLONE_SHA"
     unzip -q /tmp/rclone.zip -d /tmp/rclone_pkg
@@ -144,7 +144,7 @@ if ! command -v rclone &>/dev/null; then
 fi
 if ! command -v yq &>/dev/null; then
     YQ_VER="v4.44.3"
-    YQ_SHA="887c956cc65860d5c074e6456075c75ed9f30e9d6d7aa9d1c1432f808759695d"
+    YQ_SHA="a2c097180dd884a8d50c956ee16a9cec070f30a7947cf4ebf87d5f36213e9ed7"
     wget -q "https://github.com/mikefarah/yq/releases/download/${YQ_VER}/yq_linux_amd64" -O /usr/local/bin/yq
     verify_checksum "/usr/local/bin/yq" "$YQ_SHA"
     chmod +x /usr/local/bin/yq
