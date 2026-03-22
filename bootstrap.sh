@@ -53,13 +53,7 @@ if [[ -f "$INSTALL_DIR/VERSION" ]]; then
     VERSION=$(cat "$INSTALL_DIR/VERSION")
 fi
 
-# ── Canonical CLI Versions ──────────────────────────────────────────────────
-BWS_VERSION="1.0.0"
-DOCKER_CE_VERSION="26.0.0"
 
-# ── Canonical CLI Versions ──────────────────────────────────────────────────
-BWS_VERSION="1.0.0"
-DOCKER_CE_VERSION="26.0.0"
 
 verify_checksum() {
     local file="$1"
@@ -219,7 +213,7 @@ if git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_ORG}/${
     cp -rv "$tmp_clone/." "$INSTALL_DIR/" > /dev/null
     rm -rf "$tmp_clone"
 else
-    log_all_error "Git clone failed. Check your GITHUB_PAT and network."
+    log_error "Git clone failed. Check your GITHUB_PAT and network."
     exit 1
 fi
 unset GITHUB_TOKEN
