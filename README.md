@@ -1,7 +1,7 @@
 # ignite
 ## One-command VPS Hardening for Loans Emporium Platform
 
-**Version**: V11.0 "Root Resilience"  
+**Version**: V11.1 "Gatus Dynamic Monitoring"  
 **Target Architecture**: Internal PaaS (Platform-as-a-Service)  
 **Last Updated**: March 22, 2026
 
@@ -17,7 +17,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Loans-Emporium/platform-igni
 
 ## 🛠️ What This Does
 
-The bootstrap script performs a 5-minute automated setup for pure root-only operation:
+The bootstrap script performs a 5-minute automated setup for root-only operation with built-in monitoring:
 
 1. **OS Hardening**: Performs a full `apt-get upgrade` and installs base tools (`git`, `curl`, `jq`, `openssl`).
 2. **Binary Integrity**: Installs **Docker**, **`yq`**, and **`rclone`** with SHA-256 checksum verification (F-02).
