@@ -66,7 +66,7 @@ verify_checksum() {
 
 echo ""
 echo "╔════════════════════════════════════════════════════════════╗"
-echo "║     Loans Emporium Platform - ignite Bootstrap V11.3       ║"
+echo "║     Loans Emporium Platform - ignite Bootstrap V11.4       ║"
 echo "╚════════════════════════════════════════════════════════════╝"
 echo ""
 
