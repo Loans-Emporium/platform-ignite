@@ -48,7 +48,7 @@ VPS_HOSTNAME="${VPS_HOSTNAME:?ERROR: VPS_HOSTNAME must be set before running boo
 VPS_TZ="${VPS_TZ:-Asia/Kolkata}"
 
 # F-01/F-21: Read VERSION dynamically if available
-VERSION="11.1" # V11.1 Gatus Dynamic Monitoring
+VERSION="11.3" # V11.3 Full Lifecycle Integrity
 if [[ -f "$INSTALL_DIR/VERSION" ]]; then
     VERSION=$(cat "$INSTALL_DIR/VERSION")
 fi
@@ -66,7 +66,7 @@ verify_checksum() {
 
 echo ""
 echo "╔════════════════════════════════════════════════════════════╗"
-echo "║     Loans Emporium Platform - ignite Bootstrap V11.1       ║"
+echo "║     Loans Emporium Platform - ignite Bootstrap V11.3       ║"
 echo "╚════════════════════════════════════════════════════════════╝"
 echo ""
 
