@@ -32,12 +32,41 @@ GITHUB_ORG="${GITHUB_ORG:-Loans-Emporium}"
 GITHUB_REPO="platform-core"
 INSTALL_DIR="/opt/platform"
 
-# Dependency Pinning (Audit N-10/N-13)
-BWS_VERSION="1.0.0"
-DOCKER_CE_VERSION="26.0.0"
-YQ_VERSION="4.44.3"
-RCLONE_VERSION="1.66.0"
-TAILSCALE_VERSION="1.62.1"
+# ── Version Manifest Logic (V12 Governance) ──────────────────────────────────
+MANIFEST_PATH="$INSTALL_DIR/VERSIONS.lock"
+
+# Load Manifest if exists
+if [[ -f "$MANIFEST_PATH" ]]; then
+    log_info "Loading Version Manifest: $MANIFEST_PATH"
+    source "$MANIFEST_PATH"
+fi
+
+# Fallback Defaults (Pinned Milestone v11.6)
+BWS_VERSION="${BWS_VERSION:-1.0.0}"
+DOCKER_CE_VERSION="${DOCKER_VERSION:-26.0.0}"
+YQ_VERSION="${YQ_VERSION:-4.44.3}"
+RCLONE_VERSION="${RCLONE_VERSION:-1.66.0}"
+TAILSCALE_VERSION="${TAILSCALE_VERSION:-1.62.1}"
+PLATFORM_VERSION="${PLATFORM_VERSION:-11.6}"
+
+# ── Resilience Helpers ───────────────────────────────────────────────────────
+apt_install_with_retry() {
+    local packages=("$@")
+    local max_attempts=3
+    local attempt=1
+    
+    while [[ $attempt -le $max_attempts ]]; do
+        log_info "Installing ${packages[*]} (Attempt $attempt/$max_attempts)..."
+        if apt-get install -y -qq --no-upgrade "${packages[@]}" > /dev/null 2>&1; then
+            return 0
+        fi
+        log_warn "Apt install failed. Retrying in 5s..."
+        sleep 5
+        ((attempt++))
+        apt-get update -qq
+    done
+    return 1
+}
 
 # ── Localization & Identity (Audit N-12 Hardening) ──────────────────────────
 if [[ -z "${VPS_HOSTNAME:-}" ]]; then
@@ -84,7 +113,9 @@ fi
 # ─────────────────────────────────────────────────────────────────
 log_info "Phase 1: Updating OS and installing base tools (Git, curl, jq, pg_dump 17)..."
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq && apt-get upgrade -y -qq > /dev/null 2>&1
+
+# Tier-1 upgrades moved to background cron; Tier-0 bootstrap uses update only.
+apt-get update -qq 
 
 # V10.6.9: Install Postgres 17 Client for Neon/Cloud compatibility
 if ! command -v pg_dump &>/dev/null || [[ $(pg_dump --version | grep -oE '[0-9]+' | head -1) -lt 17 ]]; then
@@ -94,7 +125,8 @@ if ! command -v pg_dump &>/dev/null || [[ $(pg_dump --version | grep -oE '[0-9]+
     echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list
 fi
 
-apt-get update -qq && apt-get install -y -qq curl git jq unzip gpg wget postgresql-client-17 openssl > /dev/null 2>&1
+apt-get update -qq
+apt_install_with_retry curl git jq unzip gpg wget postgresql-client-17 openssl
 
 # ─────────────────────────────────────────────────────────────────
 # PHASE 2: Install Docker Engine
