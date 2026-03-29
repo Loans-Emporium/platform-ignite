@@ -1,9 +1,9 @@
 # platform-ignite
 ## One-command VPS Hardening for Loans Emporium Platform
 
-**Version**: V11.5 (Production Final)  
+**Version**: V13.0.0 (Production Blueprint)  
 **Target Architecture**: Internal PaaS (Platform-as-a-Service)  
-**Last Updated**: March 25, 2026
+**Last Updated**: March 29, 2026
 
 ---
 
@@ -19,14 +19,14 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Loans-Emporium/Platform-Igni
 
 The bootstrap script performs a 5-minute automated setup for root-only operation with built-in monitoring:
 
-1. **OS Hardening**: Performs a full `apt-get upgrade` and installs base tools (`git`, `curl`, `jq`, `openssl`).
+1. **OS Hardening**: Performs initial `apt-get upgrade` and installs base tools (`git`, `curl`, `jq`, `openssl`). *Ongoing patching managed by V12.5 Maintenance Cron.*
 2. **Binary Integrity**: Installs **Docker**, **`yq`**, and **`rclone`** with SHA-256 checksum verification (F-02).
 3. **Secret Management**: Installs Bitwarden Secrets Manager CLI (`bws` v1.0.0).
 4. **Network Hardening**: Configures **UFW** (Blocking public SSH, allowing 80/443 and Tailscale mesh).
 5. **Vesting**: Clones `platform-core` and hand-off to the internal `platform-bootstrap.sh`.
 6. **Persistence**: Hardens secret storage to `0600` and un-exports master tokens from the environment (F-01/F-04).
 
-## 🔐 Security Design (V11.0)
+## 🔐 Security Design (V13.0.0)
 
 Follows "Root Resilience" and "Zero Secrets" principles:
 - **Binary Checksums**: Every 3rd-party binary is verified against a hardcoded SHA-256 hash.
@@ -37,7 +37,7 @@ Follows "Root Resilience" and "Zero Secrets" principles:
 
 ## 🛡️ Security Maintenance
 
-To maintain the high security bar of V11.0:
+To maintain the high security bar of V13.0.0:
 
 1. **Linting**: All changes must pass `shellcheck` before being merged:
    ```bash
@@ -57,4 +57,4 @@ To maintain the high security bar of V11.0:
 ---
 
 **Maintained by**: Loans Emporium Platform Team  
-**Status**: Production Ready ✅ (V11.4 Hardened)
+**Status**: Production Ready ✅ (V13.0.0 Hardened)
