@@ -41,13 +41,13 @@ if [[ -f "$MANIFEST_PATH" ]]; then
     source "$MANIFEST_PATH"
 fi
 
-# Fallback Defaults (Pinned Milestone v11.6)
+# Fallback Defaults (Pinned Milestone — see VERSIONS.lock for canonical values)
 BWS_VERSION="${BWS_VERSION:-1.0.0}"
 DOCKER_CE_VERSION="${DOCKER_VERSION:-26.0.0}"
 YQ_VERSION="${YQ_VERSION:-4.44.3}"
 RCLONE_VERSION="${RCLONE_VERSION:-1.66.0}"
 TAILSCALE_VERSION="${TAILSCALE_VERSION:-1.62.1}"
-PLATFORM_VERSION="${PLATFORM_VERSION:-11.6}"
+PLATFORM_VERSION="${PLATFORM_VERSION:-13.0.0}"
 
 # ── Resilience Helpers ───────────────────────────────────────────────────────
 apt_install_with_retry() {
@@ -76,11 +76,8 @@ fi
 VPS_HOSTNAME="${VPS_HOSTNAME:?ERROR: VPS_HOSTNAME must be set before running bootstrap (Audit N-12)}"
 VPS_TZ="${VPS_TZ:-Asia/Kolkata}"
 
-# F-01/F-21: Read VERSION dynamically if available
-VERSION="11.3" # V11.3 Full Lifecycle Integrity
-if [[ -f "$INSTALL_DIR/VERSION" ]]; then
-    VERSION=$(cat "$INSTALL_DIR/VERSION")
-fi
+# VERSION is read dynamically after Phase 6 (clone). Placeholder until then.
+VERSION="unknown"
 
 
 
@@ -95,7 +92,7 @@ verify_checksum() {
 
 echo ""
 echo "╔════════════════════════════════════════════════════════════╗"
-echo "║     Loans Emporium Platform - platform-ignite Bootstrap V11.5       ║"
+echo "║         Loans Emporium Platform - platform-ignite Bootstrap            ║"
 echo "╚════════════════════════════════════════════════════════════╝"
 echo ""
 
@@ -266,6 +263,11 @@ else
 fi
 unset GITHUB_TOKEN
 log_success "Platform source synchronized at $INSTALL_DIR (State Preserved)."
+# Now that the repo is cloned, read the canonical VERSION
+VERSION=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || \
+          grep '^PLATFORM_VERSION=' "$INSTALL_DIR/VERSIONS.lock" 2>/dev/null | cut -d= -f1 | tr -d ' ' || \
+          echo "unknown")
+log_info "Platform version: $VERSION"
 
 # V11.0.2: Repository Version Sync Enforcement (Audit N-13)
 CORE_STACK="$INSTALL_DIR/CANONICAL_STACK"
@@ -381,7 +383,7 @@ TS_IP=$(tailscale ip -4 2>/dev/null | head -n 1 || echo "not-reached")
 
 echo ""
 echo "╔════════════════════════════════════════════════════════════╗"
-echo "║     🎉 platform-ignite Bootstrap Complete!                          ║"
+echo "║     🎉 platform-ignite Bootstrap Complete! (V${VERSION})                ║"
 echo "╚════════════════════════════════════════════════════════════╝"
 echo ""
 echo "✅ Docker:      $(docker --version | cut -d' ' -f3 | tr -d ',')"
