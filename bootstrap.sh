@@ -148,6 +148,22 @@ if ! command -v docker &>/dev/null; then
         docker-buildx-plugin \
         docker-compose-plugin > /dev/null 2>&1
     systemctl enable --now docker
+    
+    # ─── Docker Daemon Log Limits (Audit P1-02) ─────────────────────
+    log_info "Configuring Docker daemon log rotation..."
+    mkdir -p /etc/docker
+    cat > /etc/docker/daemon.json <<'EOF'
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "50m",
+    "max-file": "5"
+  }
+}
+EOF
+    # Reload daemon to apply (Docker is already running at this point)
+    systemctl reload docker 2>/dev/null || systemctl restart docker
+    log_success "Docker log rotation configured (50m × 5 files per container)."
     log_success "Docker (stable) installed and started."
 else
     log_info "Phase 2: Docker already installed."
@@ -288,7 +304,7 @@ if [[ -n "$TS_KEY" && "$TS_KEY" != "null" ]]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────
-# PHASE 8: Network Hardening (UFW) & Localization
+# Phase 8: Network Hardening (UFW) & Localization
 # ─────────────────────────────────────────────────────────────────
 log_info "Phase 8: Enforcing network lockdown (UFW) & Localization..."
 apt-get install -y -qq ufw > /dev/null 2>&1
@@ -296,7 +312,21 @@ ufw default deny incoming
 ufw default allow outgoing
 ufw allow 80/tcp
 ufw allow 443/tcp
-ufw deny 22/tcp
+
+# ─── UFW Self-Lockout Prevention (Audit P2-01) ─────────────────
+log_info "Phase 8: Verifying Tailscale is connected before locking down SSH..."
+TS_STATUS=$(tailscale status --json 2>/dev/null | jq -r '.BackendState' 2>/dev/null || echo "unknown")
+if [[ "$TS_STATUS" != "Running" ]]; then
+    log_warn "Tailscale is NOT in Running state (got: $TS_STATUS)."
+    log_warn "Skipping UFW port-22 deny to prevent self-lockout."
+    log_warn "MANUAL ACTION REQUIRED: Once Tailscale is confirmed active, run:"
+    log_warn "  ufw deny 22/tcp && ufw --force enable"
+    ufw allow 22/tcp   # Keep SSH open as fallback
+else
+    log_success "Tailscale is active. Proceeding with port-22 lockdown."
+    ufw deny 22/tcp
+fi
+
 if ip addr show tailscale0 &>/dev/null; then
     ufw allow in on tailscale0
     log_success "Tailscale interface recognized. Firewall rules applied."
