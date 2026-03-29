@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # bootstrap.sh — Public VPS bootstrap for Loans Emporium Platform
-# Part of ignite (PUBLIC repository)
+# Part of platform-ignite (PUBLIC repository)
 #
 # Usage:
-#   bash <(curl -fsSL https://raw.githubusercontent.com/Loans-Emporium/platform-ignite/main/bootstrap.sh)
+#   bash <(curl -fsSL https://raw.githubusercontent.com/Loans-Emporium/Platform-Ignite/main/bootstrap.sh)
 #
 # This script:
 #   1. Installs Docker, Git, curl, jq
@@ -95,7 +95,7 @@ verify_checksum() {
 
 echo ""
 echo "╔════════════════════════════════════════════════════════════╗"
-echo "║     Loans Emporium Platform - ignite Bootstrap V11.5       ║"
+echo "║     Loans Emporium Platform - platform-ignite Bootstrap V11.5       ║"
 echo "╚════════════════════════════════════════════════════════════╝"
 echo ""
 
@@ -256,8 +256,8 @@ CORE_STACK="$INSTALL_DIR/CANONICAL_STACK"
 if [[ -f "$CORE_STACK" ]]; then
     CORE_BWS=$(grep "BWS_VERSION" "$CORE_STACK" | cut -d'"' -f2 || true)
     if [[ -n "$CORE_BWS" && "$CORE_BWS" != "$BWS_VERSION" ]]; then
-        log_warn "VERSION SYNC WARNING: ignite ($BWS_VERSION) != platform-core ($CORE_BWS)"
-        log_warn "Please update ignite/bootstrap.sh to match CANONICAL_STACK (Audit N-13)."
+        log_warn "VERSION SYNC WARNING: platform-ignite ($BWS_VERSION) != platform-core ($CORE_BWS)"
+        log_warn "Please update platform-ignite/bootstrap.sh to match CANONICAL_STACK (Audit N-13)."
         # Non-fatal to allow manual resolution, but loud.
     fi
 fi
@@ -351,7 +351,7 @@ TS_IP=$(tailscale ip -4 2>/dev/null | head -n 1 || echo "not-reached")
 
 echo ""
 echo "╔════════════════════════════════════════════════════════════╗"
-echo "║     🎉 ignite Bootstrap Complete!                          ║"
+echo "║     🎉 platform-ignite Bootstrap Complete!                          ║"
 echo "╚════════════════════════════════════════════════════════════╝"
 echo ""
 echo "✅ Docker:      $(docker --version | cut -d' ' -f3 | tr -d ',')"

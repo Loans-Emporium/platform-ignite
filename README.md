@@ -1,4 +1,4 @@
-# ignite
+# platform-ignite
 ## One-command VPS Hardening for Loans Emporium Platform
 
 **Version**: V11.5 (Production Final)  
@@ -12,7 +12,7 @@
 ```bash
 # Hardens machine, installs runtimes, and clones PaaS control plane.
 # Forced Auth: The script will prompt for your BWS_TOKEN during execution.
-bash <(curl -fsSL https://raw.githubusercontent.com/Loans-Emporium/platform-ignite/main/bootstrap.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/Loans-Emporium/Platform-Ignite/main/bootstrap.sh)
 ```
 
 ## 🛠️ What This Does
