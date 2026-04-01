@@ -26,6 +26,20 @@ The bootstrap script performs a 5-minute automated setup for root-only operation
 5. **Vesting**: Clones `platform-core` and hand-off to the internal `platform-bootstrap.sh`.
 6. **Persistence**: Hardens secret storage to `0600` and un-exports master tokens from the environment (F-01/F-04).
 
+## Ownership Boundary
+
+`platform-ignite` owns first-mile machine preparation only:
+- OS update and base tooling
+- Binary installation and integrity verification
+- Tailscale join and UFW hardening
+- Cloning `platform-core` and handing off bootstrap context
+
+`platform-core` owns everything after the handoff:
+- Platform config materialization
+- Caddy and Gatus startup
+- Registry, ingress, monitoring, and recovery state
+- App lifecycle, backup, and restore workflows
+
 ## 🔐 Security Design (V13.0.0)
 
 Follows "Root Resilience" and "Zero Secrets" principles:

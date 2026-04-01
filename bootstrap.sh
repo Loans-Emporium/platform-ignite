@@ -10,7 +10,7 @@
 #   2. Authenticates and clones the private platform-core repository
 #   3. Dynamically sources VERSIONS.lock from the platform-core
 #   4. Installs strictly pinned versions of Docker, Tailscale, Rclone, YQ
-#   5. Hands off orchestration to platform-core
+#   5. Hands off platform configuration, recovery, and app lifecycle orchestration to platform-core
 
 set -euo pipefail
 
