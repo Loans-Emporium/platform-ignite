@@ -105,8 +105,22 @@ if ! command -v pg_dump &>/dev/null || [[ $(pg_dump --version | grep -oE '[0-9]+
     echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list
 fi
 
+# MongoDB Database Tools (for mongodump/mongorestore backup support)
+if ! command -v mongodump &>/dev/null; then
+    log_info "Adding official MongoDB APT repository for database tools v${MONGODB_TOOLS_VERSION}..."
+    curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | \
+        gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg
+    echo "deb [signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg] https://repo.mongodb.org/apt/ubuntu $(lsb_release -cs)/mongodb-org/7.0 multiverse" \
+        > /etc/apt/sources.list.d/mongodb-org-7.0.list
+fi
+
 apt-get update -qq
-apt_install_with_retry curl git jq unzip gpg wget postgresql-client-17 openssl
+apt_install_with_retry curl git jq unzip gpg wget postgresql-client-17 openssl "mongodb-database-tools=${MONGODB_TOOLS_VERSION}*"
+
+log_info "Verifying backup toolchain..."
+command -v pg_dump   &>/dev/null || { log_error "pg_dump not found!"; exit 1; }
+command -v mongodump &>/dev/null || { log_error "mongodump not found!"; exit 1; }
+log_success "pg_dump and mongodump verified."
 
 # ─────────────────────────────────────────────────────────────────
 # PHASE 2: Install Bitwarden Secrets Manager (BWS)
